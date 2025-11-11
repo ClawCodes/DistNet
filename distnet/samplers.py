@@ -77,11 +77,11 @@ class DistributedSampler(Sampler[int]): # Inherit Sampler
 
         assert len(indices) == self.total_size
 
-        # Sharding
+        # Key logic: sharding
         indices = indices[self.rank : self.total_size : self.world_size]
         assert len(indices) == self.num_samples
 
-        return iter(indices)
+        return iter(indices)    # return iterator
 
     def __len__(self) -> int:
         return self.num_samples
