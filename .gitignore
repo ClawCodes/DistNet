@@ -208,3 +208,6 @@ __marimo__/
 
 # Jetbrains
 .idea/
+
+# Local
+/tests/data/
