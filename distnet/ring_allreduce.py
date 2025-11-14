@@ -15,12 +15,13 @@ def ring_reduce(tensor: torch.Tensor):
     chunks=list(torch.chunk(tensor,world_size))
     tensor=torch.cat(chunks)
     print('Process {} has tensor {}'.format(rank, tensor))
-    #Empty buffer for receiving tensors
-    recv_buff = torch.zeros_like(chunks[recv_pos])
 
     send_idx=rank%world_size
     recv_idx=((rank-1)+world_size)%world_size
     
+    #Empty buffer for receiving tensors
+    recv_buff = torch.zeros_like(chunks[recv_idx])
+
     #Reduce-scatter
     for i in range(world_size):
         #send to next neighbor
