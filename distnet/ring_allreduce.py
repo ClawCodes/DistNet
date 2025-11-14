@@ -2,10 +2,11 @@ import os
 from torch import nn
 from torch import Tensor
 from torch import distributed as dist
+import torch
 from torch.multiprocessing import Process
 
-#tensor: torch.Tensor
-def ring_reduce():
+
+def ring_reduce(tensor: torch.Tensor):
     
     world_size = dist.get_world_size()
     rank = dist.get_rank()
@@ -51,19 +52,22 @@ def ring_reduce():
         recv_idx=((recv_idx-1)+world_size)%world_size
     print('Gathered, process {} has tensor {}'.format(rank, tensor))
 
-def init_process(rank, size, fn, backend='gloo'):
+def init_process(rank, size, tensor, fn, backend='gloo'):
     """ Initialize the distributed environment. """
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'
-    dist.init_process_group('mpi', rank=rank, world_size=size)
-    fn()
+    dist.init_process_group(backend=backend, rank=rank, world_size=size)
+    fn(tensor)
 
 if __name__ == "__main__":
     size = 2
     processes = []
+    tensor_size=8
     for rank in range(size):
-        # p = Process(target=init_process, args=(rank, size, run))
-        p = Process(target=init_process, args=(rank, size, ring_reduce))
+        torch.random.manual_seed(rank)
+        #fake tensor for testing
+        tensor = torch.zeros(tensor_size) 
+        p = Process(target=init_process, args=(rank, size, tensor, ring_reduce))
         p.start()
         processes.append(p)
 
