@@ -7,7 +7,7 @@ export SHELL_RC="$HOME/.bashrc"
 source "$SHELL_RC"
 
 # -------- PYENV --------
-if ! command -v pyenv >/dev/null 2>&1; then
+if [ ! -x "$HOME/.pyenv/bin/pyenv" ]; then
     echo "Installing pyenv..."
     curl -fsSL https://pyenv.run | bash
 
@@ -40,6 +40,7 @@ if ! command -v pipx >/dev/null 2>&1; then
     sudo apt-get update -y
     sudo apt-get install -y pipx
     pipx ensurepath
+    export PATH="$HOME/.local/bin:$PATH"
 else
     echo "pipx already installed."
 fi
