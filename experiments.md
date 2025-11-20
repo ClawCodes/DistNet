@@ -40,18 +40,19 @@ We deliberately chose a **small model** (~109K parameters) to:
 
 ---
 
-## Experiment 1: Speedup vs. World Size
+## Experiment 1: Speedup and Convergence Analysis
 
-**Goal**: Measure training time improvement as we increase the number of nodes.
+**Goal**: Measure training time improvement and convergence speed as we increase the number of nodes.
 
 ### Setup
 - **Fixed**: Dataset size (60K samples), epochs (16), batch size (32)
-- **Variable**: World size = {1, 2, 4, 8(?)}
+- **Variable**: World size = {1, 2, 3}
 - **Runs**: 3 runs per configuration (average results)
 
 ### Metrics to Collect
 - **Training time per epoch** (seconds)
 - **Total training time** (seconds)
+- **Time to reach target accuracy** (95%, 96%, 97%)
 - **Final test accuracy** (%)
 - **Speedup**: S(n) = T(1) / T(n)
 - **Parallel Efficiency**: E(n) = S(n) / n
@@ -60,55 +61,30 @@ We deliberately chose a **small model** (~109K parameters) to:
 ### Expected Results
 Given our small model size (~436KB), we anticipate **significant communication overhead**:
 - **World Size 2**: Speedup ~1.3-1.5× (efficiency ~65-75%)
-- **World Size 4**: Speedup ~2-2.5× (efficiency ~50-60%)
-- **World Size 8**: Diminishing or negative returns likely
+- **World Size 3**: Speedup ~1.8-2.2× (efficiency ~60-70%)
+- **QMNIST Caveat**: Task may saturate at ~97% accuracy
+  - More nodes should reach target accuracy faster, even if final accuracy plateaus
+  - Finding: For small models, distributed training accelerates convergence despite overhead
 
 **Note**: Sub-linear speedup is expected and valuable for characterizing the communication-computation trade-off.
 
 ### Analysis
 - Plot speedup curve (actual vs. ideal)
 - Plot parallel efficiency vs. world size
+- **Plot convergence time** for different accuracy targets (95%, 96%, 97%)
+- Plot training curves (loss vs. time, accuracy vs. time)
 - Calculate communication-to-computation ratio
 - Identify break-even point where adding nodes becomes counterproductive
 
 ---
 
-## Experiment 2: Accuracy vs. Data Size (Fixed Time)
-
-**Goal**: Test if processing more data (via distribution) improves model performance when training time is fixed.
-
-### Setup
-- **Fixed**: Training time (5 minutes)
-- **Variable**:
-  - Configuration A: 1 node (processes ~N samples in 5 min)
-  - Configuration B: 4 nodes (processes ~4N samples in 5 min)
-- **Runs**: 5 runs per configuration
-
-### Metrics to Collect
-- **Total samples processed**
-- **Final test accuracy** (%)
-- **Training loss convergence**
-- **Epochs completed** (may differ due to different throughput)
-
-### Expected Results
-- More nodes → more data processed in same time
-- Hypothesis: Processing more data should improve accuracy, but diminishing returns expected
-- Trade-off: More nodes = more synchronization overhead
-
-### Analysis
-- Compare final test accuracy between configurations
-- Plot training curves (loss vs. time, accuracy vs. time)
-- Calculate "samples processed per accuracy point gained"
-
----
-
-## Experiment 3: Communication Overhead Profiling
+## Experiment 2: Communication Overhead Profiling
 
 **Goal**: Quantify communication overhead in distributed training.
 
 ### Setup
 - **Fixed**: 16 epochs, batch size 32
-- **Variable**: World size = {1, 2, 4}
+- **Variable**: World size = {1, 2, 3}
 - **Instrumentation**: Add timers to measure communication in gradient hooks
 
 ### Metrics to Collect (per batch)
@@ -119,17 +95,13 @@ Given our small model size (~436KB), we anticipate **significant communication o
 
 ### Expected Results
 - Communication overhead increases with world size
-- For 4 nodes: expect communication ~30-40% of total time
+- For 3 nodes: expect communication ~25-35% of total time
 - Larger models would show lower percentage
 
 ### Analysis
 - Pie chart: Computation vs. Communication time distribution
 - Bar chart: Communication overhead % across different world sizes
 - Trend analysis: How overhead scales with world size
-
----
-
-> **Note**: Additional experiments (Scaling Analysis, Network Traffic, Model Parallelism) are documented in [OPTIONAL_EXPERIMENTS.md](OPTIONAL_EXPERIMENTS.md) for potential future work.
 
 ---
 
@@ -142,29 +114,30 @@ Given our small model size (~436KB), we anticipate **significant communication o
 ### File Structure
 ```
 results/
-├── experiment1_speedup/
-│   ├── world_size_1_rank_0.json
-│   ├── world_size_2_rank_0.json
-│   ├── world_size_2_rank_1.json
-│   └── ...
-├── experiment2_datasize/
-│   └── ...
-└── experiment3_profiling/
-    └── ...
+├── speedup_ws1_rank0.json
+├── speedup_ws2_rank0.json
+├── speedup_ws2_rank1.json
+├── speedup_ws3_rank0.json
+├── speedup_ws3_rank1.json
+├── speedup_ws3_rank2.json
+├── profiling_ws1_rank0.json
+├── profiling_ws2_rank0.json
+└── profiling_ws3_rank0.json
 ```
 
 ### JSON Format
 ```json
 {
   "experiment": "speedup",
-  "world_size": 4,
+  "world_size": 3,
   "rank": 0,
-  "epochs": 16,
-  "epoch_times": [5.2, 5.1, 5.0, ...],
-  "losses": [0.5, 0.3, 0.2, ...],
-  "accuracies": [0.85, 0.92, 0.95, ...],
-  "comm_times": [0.5, 0.5, 0.5, ...],
-  "compute_times": [4.7, 4.6, 4.5, ...]
+  "metrics": {
+    "epoch_times": [5.2, 5.1, 5.0, ...],
+    "losses": [0.5, 0.3, 0.2, ...],
+    "accuracies": [0.85, 0.92, 0.95, ...],
+    "comm_times": [0.5, 0.5, 0.5, ...],
+    "compute_times": [4.7, 4.6, 4.5, ...]
+  }
 }
 ```
 
@@ -175,8 +148,9 @@ results/
 ### Plots to Generate
 1. **Speedup Curve**: Speedup vs. world size (with ideal line)
 2. **Efficiency Curve**: Parallel efficiency vs. world size
-3. **Training Curves**: Loss/accuracy vs. epoch (overlay different world sizes)
-4. **Time Distribution**: Pie chart or stacked bar (compute vs. communication)
+3. **Convergence Time**: Time to reach accuracy targets (95%, 96%, 97%)
+4. **Training Curves**: Loss/accuracy vs. epoch (overlay different world sizes)
+5. **Time Distribution**: Pie chart or stacked bar (compute vs. communication)
 
 ### Tools
 - `matplotlib` for plotting
@@ -188,13 +162,14 @@ results/
 ## Success Criteria
 
 ### Minimum Viable Results
-- Demonstrate measurable speedup for 2-4 nodes (even if sub-linear)
+- Demonstrate measurable speedup for 2-3 nodes (even if sub-linear)
+- Show faster convergence time with distributed training
 - Quantify communication overhead (characterize, not minimize)
 - Maintain comparable accuracy (±1% of baseline 97%)
 - Identify model size threshold for effective distributed training
 
 ### Stretch Goals
-- Achieve >50% parallel efficiency with 4 nodes
+- Achieve >60% parallel efficiency with 3 nodes
 - Demonstrate communication overhead reduction via gradient accumulation
 - Validate findings with larger model experiment
 - Implement and compare model parallelism
@@ -203,6 +178,4 @@ results/
 
 ## Notes
 
-- All experiments should be reproducible (fixed random seeds)
-- Document any issues or anomalies encountered
 - Compare results with PyTorch's `torch.distributed` as reference (if time permits)
