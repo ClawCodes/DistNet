@@ -5,6 +5,7 @@ import torch
 from torch import nn
 from distnet.ring_allreduce import ring_reduce
 from distnet.bucket import Bucket
+
 from distnet.distnet import DistNet
 
 
@@ -46,6 +47,7 @@ class DistLocalNet(DistNet):
       nn.Linear(128, 64),
       nn.GELU(),
       nn.Linear(64, 10))
+
     self.grad_params = [param for param in self.parameters() if param.requires_grad]
     # Setup buckets.
     bucket_cap_mb = 5 # maybe change this
@@ -79,6 +81,7 @@ class DistLocalNet(DistNet):
           bucket.scatter_to_params()
           break
     return grad
+
 
   def load(self, filepath: str):
     self.model.load_state_dict(torch.load(filepath))
