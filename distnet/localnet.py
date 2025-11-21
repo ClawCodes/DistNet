@@ -66,16 +66,14 @@ class DistLocalNet(DistNet):
     # Add last unfilled bucket
     if curr_bucket:
         self.buckets.append(Bucket(curr_bucket)) 
-    print(self.buckets[0].params[0].size())
 
   # Ring all reduce hook will look something like this, this should probably be moved to main.py
   def dist_hook(self, parameter, grad):
     for bucket in self.buckets:
-      print(parameter.size())
-      print(bucket.params[0].size())
-      if parameter in bucket.params:
+      if id(parameter) in bucket.param_ids:
         #Add gradient to the bucket
-        bucket.add(parameter)
+
+        bucket.add_grad(parameter)
         if bucket.is_ready():
           ring_reduce(bucket.tensor)
           bucket.scatter_to_params()

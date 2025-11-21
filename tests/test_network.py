@@ -79,13 +79,11 @@ class TestDistNetworks:
         with pytest.raises(AssertionError, match="Param .* differs"):
             assert_models_equivalent(model1, model2)
     def test_dist_hook_with_all_reduce(self):
+        #Testing to make sure dist hook works with custom all reduce hook + making sure bucketing params doesn't break anything
         model1 = LocalNet().to(torch.device('cpu'))
         model2 = DistLocalNet().to(torch.device('cpu')) # LocalNet that inherits from DistNet
 
         model2.load_state_dict(model1.state_dict()) # ensure same initialization
-
-        #def dist_hook(name, grad):
-        #    return grad * 2 # multiply gradient by 2 to alter gradient
 
         model2.register_grad_hook(model2.dist_hook)
 
@@ -97,5 +95,4 @@ class TestDistNetworks:
         set_seed()
         train(model2, train_loader, epochs=1)
 
-        with pytest.raises(AssertionError, match="Param .* differs"):
-            assert_models_equivalent(model1, model2)
+        assert_models_equivalent(model1, model2)
