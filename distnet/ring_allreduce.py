@@ -52,25 +52,3 @@ def ring_reduce(tensor: torch.Tensor):
         send_idx=((send_idx-1)+world_size)%world_size
         recv_idx=((recv_idx-1)+world_size)%world_size
     print('Gathered, process {} has tensor {}'.format(rank, tensor))
-
-def init_process(rank, size, tensor, fn, backend='gloo'):
-    """ Initialize the distributed environment. """
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
-    dist.init_process_group(backend=backend, rank=rank, world_size=size)
-    fn(tensor)
-
-if __name__ == "__main__":
-    size = 2
-    processes = []
-    tensor_size=8
-    for rank in range(size):
-        torch.random.manual_seed(rank)
-        #fake tensor for testing
-        tensor = torch.zeros(tensor_size) 
-        p = Process(target=init_process, args=(rank, size, tensor, ring_reduce))
-        p.start()
-        processes.append(p)
-
-    for p in processes:
-        p.join()
