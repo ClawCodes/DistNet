@@ -11,13 +11,6 @@ if [ ! -x "$HOME/.pyenv/bin/pyenv" ]; then
     echo "Installing pyenv..."
     curl -fsSL https://pyenv.run | bash
 
-    # add init to shell rc
-    if [ -n "${ZSH_VERSION:-}" ]; then
-        SHELL_RC="$HOME/.zshrc"
-    else
-        SHELL_RC="$HOME/.bashrc"
-    fi
-
     if ! grep -q 'export PATH="$HOME/.pyenv/bin' "$SHELL_RC"; then
         {
             echo ''
