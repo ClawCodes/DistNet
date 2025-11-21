@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from distnet.ring_allreduce import ring_reduce
 from distnet.distnet import DistNet
-
+from distnet.bucket import Bucket
 
 ## Network Architecture -----------------------------------------------------------------------------------------------
 class LocalNet(nn.Module):
@@ -45,11 +45,11 @@ class DistLocalNet(DistNet):
       nn.Linear(128, 64),
       nn.GELU(),
       nn.Linear(64, 10))
-    grad_params = [param for param in self.parameters() if param.requires_grad]
+    self.grad_params = [param for param in self.parameters() if param.requires_grad]
     # Setup buckets.
-    bucket_cap_mb = 25 # maybe change this
+    bucket_cap_mb = 5 # maybe change this
     cap_bytes = bucket_cap_mb * 1024 * 1024
-    buckets = []
+    self.buckets = []
     curr_bucket = []
     curr_bytes = 0
 
@@ -57,7 +57,7 @@ class DistLocalNet(DistNet):
         #Fill buckets
         size = param.numel() * param.element_size()
         if curr_bucket and curr_bytes + size > cap_bytes:
-            buckets.append(Bucket(curr_bucket))
+            self.buckets.append(Bucket(curr_bucket))
             curr_bucket, curr_bytes = [], 0
         curr_bucket.append(param)
         curr_bytes += size
@@ -65,14 +65,17 @@ class DistLocalNet(DistNet):
         #param.register_hook(make_hook(param))
     # Add last unfilled bucket
     if curr_bucket:
-        buckets.append(Bucket(curr_bucket)) 
+        self.buckets.append(Bucket(curr_bucket)) 
+    print(self.buckets[0].params[0].size())
 
   # Ring all reduce hook will look something like this, this should probably be moved to main.py
-  def dist_hook(self, grad):
+  def dist_hook(self, parameter, grad):
     for bucket in self.buckets:
-      if grad in bucket.params:
+      print(parameter.size())
+      print(bucket.params[0].size())
+      if parameter in bucket.params:
         #Add gradient to the bucket
-        bucket.add(p)
+        bucket.add(parameter)
         if bucket.is_ready():
           ring_reduce(bucket.tensor)
           bucket.scatter_to_params()

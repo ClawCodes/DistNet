@@ -23,7 +23,7 @@ def ring_reduce(tensor: torch.Tensor):
     recv_buff = torch.zeros_like(chunks[recv_idx])
 
     #Reduce-scatter
-    for i in range(world_size):
+    for i in range(world_size-1):
         #send to next neighbor
         dist.send(chunks[send_idx], (rank+1)%world_size)
         #receive from prev neighbor
@@ -40,7 +40,7 @@ def ring_reduce(tensor: torch.Tensor):
     recv_idx = ((send_idx - 1)+world_size)%world_size
 
     #All Gather
-    for i in range(world_size):
+    for i in range(world_size-1):
         #send to next neighbor
         dist.send(chunks[send_idx], (rank+1)%world_size)
         #receive from prev neighbor
