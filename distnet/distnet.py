@@ -1,13 +1,13 @@
 from typing import Callable, Union
-
 from torch import nn
 from torch import Tensor
+
 from distnet.ring_allreduce import ring_reduce
 
 class DistNet(nn.Module):
     def register_grad_hook(self, hook_func: Callable[[str, Tensor], Union[Tensor, None]]):
-        named_params = dict(self.named_parameters())
-        # Register gradient hooks
+        #named_params = dict(self.named_parameters())
+        #Old
         '''
         for name, param in named_params.items():
             if param.requires_grad:
@@ -20,14 +20,13 @@ class DistNet(nn.Module):
 
                 param.register_hook(make_hook(name))
         '''
+        # Register gradient hooks
         self.grad_params = [param for param in self.parameters() if param.requires_grad]
         for param in self.grad_params:
             def make_hook(parameter):  # bind hook to param name
                 def hook(grad):
                     new_grad = hook_func(parameter, grad)
                     return new_grad
-
                 return hook
-
             param.register_hook(make_hook(param))
 

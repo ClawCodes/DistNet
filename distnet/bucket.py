@@ -5,7 +5,6 @@ class Bucket:
         self.param_ids = set()
         # Offsets to map per-param grad to bucket
         self.offsets = {}
-    
         offset = 0
         for p in params:
             self.param_ids.add(id(p))
@@ -17,7 +16,6 @@ class Bucket:
 
     def add_grad(self, p):
         #Copy gradient into bucket
-
         offset=self.offsets[id(p)]
         self.tensor[offset: offset + p.numel()].copy_(p.view(-1))
         self.ready_count += 1

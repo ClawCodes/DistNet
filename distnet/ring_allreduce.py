@@ -3,8 +3,6 @@ from torch import nn
 from torch import Tensor
 from torch import distributed as dist
 import torch
-from torch.multiprocessing import Process
-
 
 def ring_reduce(tensor: torch.Tensor):
     

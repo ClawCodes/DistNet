@@ -4,8 +4,9 @@
 import torch
 from torch import nn
 from distnet.ring_allreduce import ring_reduce
-from distnet.distnet import DistNet
 from distnet.bucket import Bucket
+from distnet.distnet import DistNet
+
 
 ## Network Architecture -----------------------------------------------------------------------------------------------
 class LocalNet(nn.Module):
@@ -72,7 +73,6 @@ class DistLocalNet(DistNet):
     for bucket in self.buckets:
       if id(parameter) in bucket.param_ids:
         #Add gradient to the bucket
-
         bucket.add_grad(parameter)
         if bucket.is_ready():
           ring_reduce(bucket.tensor)
