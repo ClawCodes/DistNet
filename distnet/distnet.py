@@ -1,8 +1,6 @@
 from typing import Callable, Union
 
-from torch import nn
-from torch import Tensor
-
+from torch import nn, Tensor
 
 class DistNet(nn.Module):
     def register_grad_hook(self, hook_func: Callable[[str, Tensor], Union[Tensor, None]]):
@@ -19,3 +17,4 @@ class DistNet(nn.Module):
                     return hook
 
                 param.register_hook(make_hook(name))
+
