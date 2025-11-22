@@ -48,7 +48,7 @@ def main(args) -> None:
     dist.init_process_group(backend='gloo')
 
     net = DistLocalNet()
-    net.register_grad_hook(reduce_func)
+    net.register_grad_hook(net.dist_hook)
 
     # TODO: broadcast model
 
