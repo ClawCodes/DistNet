@@ -52,8 +52,8 @@ def main(args) -> None:
     net.register_grad_hook(reduce_func)
 
     # broadcast parameters from rank 0 to other nodes
-    if (rank != 0):
-      broadcast_model(net, src=0)
+    dist.barrier()
+    broadcast_model(net, src=0)
     dist.barrier()
 
     train_loader, test_loader = load_mnist(args.batch_size)
