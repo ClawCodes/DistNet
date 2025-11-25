@@ -55,7 +55,9 @@ class DistLocalNet(DistNet):
     self.buckets = []
     curr_bucket = []
     curr_bytes = 0
-
+    self.hookFireCount = 0 #Test, delete this
+    self.reduceFireCount = 0 #Test, delete this
+    print('Grad param size: {}'.format(len(self.grad_params)))
     for param in self.grad_params:
         #Fill buckets
         size = param.numel() * param.element_size()
@@ -72,16 +74,24 @@ class DistLocalNet(DistNet):
 
   # Ring all reduce hook will look something like this, this should probably be moved to main.py
   def dist_hook(self, parameter, grad):
+    self.hookFireCount+=1
+    if self.hookFireCount < 10:  print('Firing hook: {}'.format(self.hookFireCount))
     for bucket in self.buckets:
       if id(parameter) in bucket.param_ids:
         #Add gradient to the bucket
+        if self.hookFireCount < 10: print('Bucket size: {}'.format(len(bucket.params)))
         bucket.add_grad(parameter)
         if bucket.is_ready():
+          if self.hookFireCount < 10: print('Firing reduce on hook fire: {}'.format(self.hookFireCount))
+          self.reduceFireCount+=1
           ring_reduce(bucket.tensor)
           bucket.scatter_to_params()
           break
     return grad
 
+  def reset_buckets(self):
+    for b in self.buckets:
+      b.reset()
 
   def load(self, filepath: str):
     self.model.load_state_dict(torch.load(filepath))

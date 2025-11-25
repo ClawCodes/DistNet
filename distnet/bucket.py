@@ -14,6 +14,10 @@ class Bucket:
         self.tensor = torch.zeros(self.size)
         self.ready_count = 0
 
+    def reset(self):
+        self.ready_count = 0
+        self.tensor.zero_()
+        
     def add_grad(self, p):
         #Copy gradient into bucket
         offset=self.offsets[id(p)]

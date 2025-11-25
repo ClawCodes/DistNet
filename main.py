@@ -48,7 +48,7 @@ def main(args) -> None:
     dist.init_process_group(backend='gloo')
 
     net = DistLocalNet()
-    net.register_grad_hook(reduce_func)
+    net.register_grad_hook(net.dist_hook)
 
     # TODO: broadcast model
 
@@ -66,7 +66,7 @@ def main(args) -> None:
     distributed_train(net, train_loader, args.batch_size, epochs=args.epoch, outfile=outfile)
 
     distributed_test(net, test_loader, outfile)
-
+   
     dist.destroy_process_group()
 
 if __name__ == '__main__':

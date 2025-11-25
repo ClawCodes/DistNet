@@ -119,12 +119,16 @@ def distributed_train(model: nn.Module, train_loader: DataLoader, batch_size: in
             output = model(images)
             loss = criterion(output, labels)
             loss.backward()
+            model.reset_buckets()
             optimizer.step()
             epoch_loss += loss.item()
         # output current loss
         avg_loss = epoch_loss / len(train_loader)
         train_info["loss"].append(avg_loss)
         print(f"Epoch {epoch + 1}: loss={avg_loss:.4f}")
+        print('Process {} has fired grad hook {} times'.format(dist.get_rank(), model.hookFireCount))
+        print('Process {} has fired reduce {} times'.format(dist.get_rank(), model.reduceFireCount))
+        print('Process {} has {} buckets'.format(dist.get_rank(), len(model.buckets)))
     # output training time
     end = time.perf_counter()
     time_elapsed = end - start
