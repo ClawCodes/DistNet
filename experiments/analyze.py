@@ -4,7 +4,9 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
+import glob
+import sys
 
 
 class ExperimentLogger:
@@ -70,6 +72,39 @@ class ExperimentLogger:
             return json.load(f)
 
 
+def find_result_file(base_dir: str, world_size: int, experiment: str = 'speedup') -> Optional[str]:
+    """Find result file for given world size, supporting multiple directory structures."""
+    base_path = Path(base_dir)
+
+    patterns = [
+        f'{experiment}_ws{world_size}_rank0.json',
+        f'{experiment}_ws{world_size}/node0_*.json',
+        f'*_ws{world_size}/node0_*.json',
+        f'*/node{world_size-1}_*.json',
+    ]
+
+    for pattern in patterns:
+        matches = list(base_path.glob(pattern))
+        if matches:
+            for match in matches:
+                data = ExperimentLogger.load(str(match))
+                if data.get('world_size') == world_size or data.get('rank') == 0:
+                    return str(match)
+
+    subdirs = [d for d in base_path.iterdir() if d.is_dir()]
+    for subdir in subdirs:
+        node_files = list(subdir.glob('node0_*.json'))
+        if node_files:
+            try:
+                data = ExperimentLogger.load(str(node_files[0]))
+                if data.get('world_size') == world_size:
+                    return str(node_files[0])
+            except:
+                continue
+
+    return None
+
+
 def analyze_speedup(results_dir: str = './results'):
     """Analyze speedup from experiments with different world sizes."""
     print("Analyzing speedup experiment...")
@@ -78,14 +113,18 @@ def analyze_speedup(results_dir: str = './results'):
     training_times = []
 
     for ws in world_sizes:
-        filepath = f'{results_dir}/speedup_ws{ws}_rank0.json'
+        filepath = find_result_file(results_dir, ws, 'speedup')
+        if not filepath:
+            print(f"Warning: No result file found for world size {ws}, skipping...")
+            return
+
         try:
             data = ExperimentLogger.load(filepath)
             total_time = sum(data['metrics']['epoch_times'])
             training_times.append(total_time)
             print(f"World size {ws}: {total_time:.2f}s")
-        except FileNotFoundError:
-            print(f"Warning: {filepath} not found, skipping...")
+        except (FileNotFoundError, KeyError) as e:
+            print(f"Warning: Error loading {filepath}: {e}")
             return
 
     baseline_time = training_times[0]
@@ -122,7 +161,13 @@ def analyze_convergence_time(results_dir: str = './results', experiment: str = '
     results = {target: [] for target in target_accuracies}
 
     for ws in world_sizes:
-        filepath = f'{results_dir}/{experiment}_ws{ws}_rank0.json'
+        filepath = find_result_file(results_dir, ws, experiment)
+        if not filepath:
+            print(f"Warning: No result file found for world size {ws}")
+            for target in target_accuracies:
+                results[target].append(None)
+            continue
+
         try:
             data = ExperimentLogger.load(filepath)
             accuracies = data['metrics']['accuracies']
@@ -151,8 +196,8 @@ def analyze_convergence_time(results_dir: str = './results', experiment: str = '
                 World size 3 → 97% accuracy: not reached (shouldn't happen)
                 """
 
-        except FileNotFoundError:
-            print(f"Warning: {filepath} not found, skipping...")
+        except (FileNotFoundError, KeyError) as e:
+            print(f"Warning: Error loading {filepath}: {e}")
             for target in target_accuracies:
                 results[target].append(None)
 
@@ -168,7 +213,14 @@ def analyze_communication_overhead(results_dir: str = './results'):
     comm_percentages = []
 
     for ws in world_sizes:
-        filepath = f'{results_dir}/profiling_ws{ws}_rank0.json'
+        filepath = find_result_file(results_dir, ws, 'profiling')
+        if not filepath:
+            filepath = find_result_file(results_dir, ws, 'speedup')
+
+        if not filepath:
+            print(f"Warning: No result file found for world size {ws}, skipping...")
+            return
+
         try:
             data = ExperimentLogger.load(filepath)
             total_time = sum(data['metrics']['epoch_times'])
@@ -176,8 +228,8 @@ def analyze_communication_overhead(results_dir: str = './results'):
             comm_pct = (comm_time / total_time * 100) if total_time > 0 else 0
             comm_percentages.append(comm_pct)
             print(f"World size {ws}: Communication overhead = {comm_pct:.1f}%")
-        except FileNotFoundError:
-            print(f"Warning: {filepath} not found, skipping...")
+        except (FileNotFoundError, KeyError) as e:
+            print(f"Warning: Error loading {filepath}: {e}")
             return
 
     plot_communication_overhead(world_sizes, comm_percentages,
@@ -281,7 +333,11 @@ def plot_training_curves(results_dir: str = './results', experiment: str = 'spee
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
     for ws in world_sizes:
-        filepath = f'{results_dir}/{experiment}_ws{ws}_rank0.json'
+        filepath = find_result_file(results_dir, ws, experiment)
+        if not filepath:
+            print(f"Warning: No result file found for world size {ws}")
+            continue
+
         try:
             data = ExperimentLogger.load(filepath)
             epochs = range(1, len(data['metrics']['losses']) + 1)
@@ -292,8 +348,8 @@ def plot_training_curves(results_dir: str = './results', experiment: str = 'spee
             if any(data['metrics']['accuracies']):
                 ax2.plot(epochs, [a * 100 for a in data['metrics']['accuracies']],
                         label=f'World Size {ws}', linewidth=2)
-        except FileNotFoundError:
-            print(f"Warning: {filepath} not found, skipping...")
+        except (FileNotFoundError, KeyError) as e:
+            print(f"Warning: Error loading {filepath}: {e}")
             continue
 
     ax1.set_xlabel('Epoch', fontsize=12)
@@ -320,12 +376,21 @@ if __name__ == '__main__':
     print("Distributed Training Experiment Analysis")
     print("="*60)
 
-    results_dir = './results'
+    if len(sys.argv) > 1:
+        results_dir = sys.argv[1]
+    else:
+        results_dir = './results'
 
-    if not Path(results_dir).exists():
-        print(f"\nError: Results directory '{results_dir}' not found.")
-        print("Please run experiments first to generate results.")
+    results_path = Path(results_dir)
+    if not results_path.exists():
+        print(f"\nError: Directory '{results_dir}' not found.")
+        print("\nUsage: python analyze.py [results_dir]")
+        print("Examples:")
+        print("  python analyze.py ./results")
+        print("  python analyze.py ../runs")
         exit(1)
+
+    print(f"\nAnalyzing results from: {results_dir}\n")
 
     analyze_speedup(results_dir)
     analyze_convergence_time(results_dir, experiment='speedup')
@@ -333,5 +398,5 @@ if __name__ == '__main__':
     plot_training_curves(results_dir, experiment='speedup')
 
     print("\n" + "="*60)
-    print("Analysis complete! Check the results directory for plots.")
+    print(f"Analysis complete! Check {results_dir} for plots.")
     print("="*60)
