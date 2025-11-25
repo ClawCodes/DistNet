@@ -74,7 +74,7 @@ def analyze_speedup(results_dir: str = './results'):
     """Analyze speedup from experiments with different world sizes."""
     print("Analyzing speedup experiment...")
 
-    world_sizes = [1, 2, 3]
+    world_sizes = [1, 2, 3, 4]
     training_times = []
 
     for ws in world_sizes:
@@ -109,7 +109,7 @@ def analyze_convergence_time(results_dir: str = './results', experiment: str = '
     """Analyze time to reach target accuracy thresholds."""
     print("\nAnalyzing convergence time...")
 
-    world_sizes = [1, 2, 3]
+    world_sizes = [1, 2, 3, 4]
     target_accuracies = [0.95, 0.96, 0.97]
 
     """
@@ -164,7 +164,7 @@ def analyze_communication_overhead(results_dir: str = './results'):
     """Analyze communication overhead from profiling experiment."""
     print("\nAnalyzing communication overhead...")
 
-    world_sizes = [1, 2, 3]
+    world_sizes = [1, 2, 3, 4]
     comm_percentages = []
 
     for ws in world_sizes:
@@ -277,7 +277,7 @@ def plot_training_curves(results_dir: str = './results', experiment: str = 'spee
     """Plot training loss and accuracy curves."""
     print(f"\nPlotting training curves for {experiment}...")
 
-    world_sizes = [1, 2, 3]
+    world_sizes = [1, 2, 3, 4]
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
     for ws in world_sizes:

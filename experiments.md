@@ -46,7 +46,7 @@ We deliberately chose a **small model** (~109K parameters) to:
 
 ### Setup
 - **Fixed**: Dataset size (60K samples), epochs (16), batch size (32)
-- **Variable**: World size = {1, 2, 3}
+- **Variable**: World size = {1, 2, 3, 4}
 - **Runs**: 3 runs per configuration (average results)
 
 ### Metrics to Collect
@@ -62,6 +62,7 @@ We deliberately chose a **small model** (~109K parameters) to:
 Given our small model size (~436KB), we anticipate **significant communication overhead**:
 - **World Size 2**: Speedup ~1.3-1.5× (efficiency ~65-75%)
 - **World Size 3**: Speedup ~1.8-2.2× (efficiency ~60-70%)
+- **World Size 4**: Speedup ~2.2-2.6× (efficiency ~55-65%)
 - **QMNIST Caveat**: Task may saturate at ~97% accuracy
   - More nodes should reach target accuracy faster, even if final accuracy plateaus
   - Finding: For small models, distributed training accelerates convergence despite overhead
@@ -84,7 +85,7 @@ Given our small model size (~436KB), we anticipate **significant communication o
 
 ### Setup
 - **Fixed**: 16 epochs, batch size 32
-- **Variable**: World size = {1, 2, 3}
+- **Variable**: World size = {1, 2, 3, 4}
 - **Instrumentation**: Add timers to measure communication in gradient hooks
 
 ### Metrics to Collect (per batch)
@@ -95,7 +96,7 @@ Given our small model size (~436KB), we anticipate **significant communication o
 
 ### Expected Results
 - Communication overhead increases with world size
-- For 3 nodes: expect communication ~25-35% of total time
+- For 4 nodes: expect communication ~30-40% of total time
 - Larger models would show lower percentage
 
 ### Analysis
@@ -162,14 +163,14 @@ results/
 ## Success Criteria
 
 ### Minimum Viable Results
-- Demonstrate measurable speedup for 2-3 nodes (even if sub-linear)
+- Demonstrate measurable speedup for 2-4 nodes (even if sub-linear)
 - Show faster convergence time with distributed training
 - Quantify communication overhead (characterize, not minimize)
 - Maintain comparable accuracy (±1% of baseline 97%)
 - Identify model size threshold for effective distributed training
 
 ### Stretch Goals
-- Achieve >60% parallel efficiency with 3 nodes
+- Achieve >60% parallel efficiency with 4 nodes
 - Demonstrate communication overhead reduction via gradient accumulation
 - Validate findings with larger model experiment
 - Implement and compare model parallelism
