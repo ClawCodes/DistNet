@@ -8,7 +8,7 @@ import torch
 import torch.distributed as dist
 
 from distnet.localnet import DistLocalNet
-from distnet.util import load_mnist, distributed_train, distributed_test
+from distnet.util import load_mnist, distributed_train, distributed_test, broadcast_model
 
 PROJECT_ROOT = Path(__file__).parent
 
@@ -46,11 +46,15 @@ def reduce_func(param_name: str, grad: torch.Tensor) -> Optional[torch.Tensor]:
 
 def main(args) -> None:
     dist.init_process_group(backend='gloo')
+    rank = dist.get_rank()
 
     net = DistLocalNet()
     net.register_grad_hook(net.dist_hook)
 
-    # TODO: broadcast model
+    # broadcast parameters from rank 0 to other nodes
+    dist.barrier()
+    broadcast_model(net, src=0)
+    dist.barrier()
 
     train_loader, test_loader = load_mnist(args.batch_size)
 

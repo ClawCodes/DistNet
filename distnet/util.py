@@ -2,18 +2,29 @@ import json
 from pathlib import Path
 from typing import Tuple
 
-from torchvision import datasets, transforms
-import torch
-from torch import nn
 import time
+import random
+import numpy as np
+import torch
+from torchvision import datasets, transforms
+from torch import nn
 from torch import optim
 from torch.utils.data import DataLoader
-import numpy as np
-import random
+from torch.nn.utils import parameters_to_vector, vector_to_parameters
 import torch.distributed as dist
 
 from distnet import DistributedSampler
 
+
+def broadcast_model(model, src=0):
+    # broadcast parameters in single call
+    vec = parameters_to_vector(model.parameters())
+    dist.broadcast(vec, src=src)
+    vector_to_parameters(vec, model.parameters())
+
+    # broadcast any buffers individually
+    for buf in model.buffers():
+        dist.broadcast(buf.data, src=src)
 
 def set_seed(seed=42):
     """
