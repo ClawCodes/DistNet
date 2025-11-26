@@ -95,8 +95,20 @@ def analyze_convergence(results_dir: str, world_sizes: List[int], targets: List[
                     reached = cumulative
                     break
             results[target].append(reached)
-            status = f"{reached:.1f}s" if reached else "not reached"
-            print(f"  WS {ws} → {target*100:.0f}%: {status}")
+
+    # Print results as table
+    print(f"\n  {'WS':<6}", end="")
+    for target in targets:
+        print(f"{target*100:.0f}% acc{'':<6}", end="")
+    print()
+
+    for i, ws in enumerate(world_sizes):
+        print(f"  {ws:<6}", end="")
+        for target in targets:
+            reached = results[target][i]
+            status = f"{reached:.1f}s" if reached else "N/A"
+            print(f"{status:<12}", end="")
+        print()
 
     return results
 
@@ -126,7 +138,6 @@ def plot_speedup(world_sizes: List[int], speedup: List[float],
 
     plt.tight_layout()
     plt.savefig(output, dpi=300, bbox_inches='tight')
-    print(f"Saved: {output}")
     plt.close()
 
 
@@ -153,7 +164,6 @@ def plot_convergence(world_sizes: List[int], results: Dict[float, List], output:
 
     plt.tight_layout()
     plt.savefig(output, dpi=300, bbox_inches='tight')
-    print(f"Saved: {output}")
     plt.close()
 
 
@@ -190,7 +200,6 @@ def plot_training_curves(results_dir: str, world_sizes: List[int], output: str):
 
     plt.tight_layout()
     plt.savefig(output, dpi=300, bbox_inches='tight')
-    print(f"Saved: {output}")
     plt.close()
 
 
@@ -229,7 +238,6 @@ def plot_comm_overhead(world_sizes: List[int], results_dir: str, output: str):
 
     plt.tight_layout()
     plt.savefig(output, dpi=300, bbox_inches='tight')
-    print(f"Saved: {output}")
     plt.close()
 
 
