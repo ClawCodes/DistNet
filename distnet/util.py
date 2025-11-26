@@ -79,11 +79,13 @@ def train(model: nn.Module, train_loader: DataLoader, epochs: int = 16) -> nn.Mo
 
     return model
 
-def distributed_train(model: nn.Module, train_loader: DataLoader, batch_size: int, epochs: int , outfile: Path) -> nn.Module:
+def distributed_train(model: nn.Module, train_loader: DataLoader, test_loader: DataLoader, batch_size: int, epochs: int , outfile: Path) -> nn.Module:
     world_size = dist.get_world_size()
     rank = dist.get_rank()
 
     train_info = {
+        "epochs": epochs,
+        "batch_size": batch_size,
         "experiment": "speedup",
         "world_size": world_size,
         "rank": rank,
@@ -109,18 +111,21 @@ def distributed_train(model: nn.Module, train_loader: DataLoader, batch_size: in
         train_loader.dataset,
         batch_size=batch_size,
         sampler=sampler,
-        shuffle=False,
+        shuffle=False,  # Keep false, sampler handles shuffling
     )
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
+    # train on data EPOCHS number of time
     for epoch in range(epochs):
-        epoch_start = time.perf_counter()
+        epoch_start = time.perf_counter()   # Start timer for "each" epoch
         sampler.set_epoch(epoch)
+        # initialize per epoch variables
         model.train()
         epoch_loss = 0.0
 
+        # optimize parameters by batch-averaged loss gradient
         for images, labels in train_loader:
             optimizer.zero_grad()
             output = model(images)
@@ -132,24 +137,39 @@ def distributed_train(model: nn.Module, train_loader: DataLoader, batch_size: in
         avg_loss = epoch_loss / len(train_loader)
         epoch_time = time.perf_counter() - epoch_start
 
-        train_info["metrics"]["losses"].append(avg_loss)
+        train_info["metrics"]["losses"].append(avg_loss)    # train_info["loss"].append(avg_loss)
         train_info["metrics"]["epoch_times"].append(epoch_time)
         train_info["metrics"]["comm_times"].append(0.0)
         train_info["metrics"]["compute_times"].append(epoch_time)
 
-        print(f"Epoch {epoch + 1}: loss={avg_loss:.4f}, time={epoch_time:.2f}s")
+        # Test after each epoch for convergence analysis
+        model.eval()
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for images, labels in test_loader:
+                output = model(images)
+                pred = output.argmax(dim=1)
+                correct += (pred == labels).sum().item()
+                total += labels.size(0)
 
+        accuracy = correct / total
+        train_info["metrics"]["accuracies"].append(accuracy)
+
+        print(f"Epoch {epoch + 1}: loss={avg_loss:.4f}, time={epoch_time:.2f}s, acc={accuracy*100:.2f}%")
+
+    # Write all the data to JSON at once when training finishes
     with open(outfile, "w") as f:
         json.dump(train_info, f, indent=4)
 
     return model
 
-def distributed_test(model: nn.Module, test_loader: DataLoader, outfile: Path) -> float:
-    print("Evaluating model performance...")
+def distributed_test(model: nn.Module, test_loader: DataLoader) -> float:
+    print("Final evaluation...")
     model.eval()
     correct = 0
     total = 0
-    with torch.no_grad():
+    with torch.no_grad():  # disable caching layer evaluations
         for images, labels in test_loader:
             output = model(images)
             pred = output.argmax(dim=1)
@@ -157,16 +177,7 @@ def distributed_test(model: nn.Module, test_loader: DataLoader, outfile: Path) -
             total += labels.size(0)
 
     accuracy = correct / total
-    print(f"Test accuracy: {100 * correct / total:.2f}%")
-
-    with open(outfile, "r") as f_in:
-        data = json.load(f_in)
-
-    data["metrics"]["accuracies"] = [accuracy] * len(data["metrics"]["losses"])
-
-    with open(outfile, "w") as f_out:
-        json.dump(data, f_out, indent=4)
-
+    print(f"Final test accuracy: {100 * accuracy:.2f}%")
     return accuracy
 
 def test(model: nn.Module, test_loader: DataLoader) -> float:

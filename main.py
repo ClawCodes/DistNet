@@ -63,9 +63,12 @@ def main(args) -> None:
 
     os.makedirs(outfile.parent, exist_ok=True)
 
-    distributed_train(net, train_loader, args.batch_size, epochs=args.epoch, outfile=outfile)
+    # Pass test_loader to evaluate accuracy after each epoch 
+    # for convergence analysis
+    distributed_train(net, train_loader, test_loader, args.batch_size, epochs=args.epoch, outfile=outfile)
 
-    distributed_test(net, test_loader, outfile)
+    # No outfile needed, accuracies already saved during training
+    distributed_test(net, test_loader)
 
     dist.destroy_process_group()
 
