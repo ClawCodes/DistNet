@@ -12,7 +12,7 @@ def ring_reduce(tensor: torch.Tensor):
     #Split tensor into world_size chunks
     chunks=list(torch.chunk(tensor,world_size))
     tensor=torch.cat(chunks)
-    #print('Process {} has tensor {}'.format(rank, tensor))
+    # print('Process {} has tensor {}'.format(rank, tensor))
 
     send_idx=rank%world_size
     recv_idx=((rank-1)+world_size)%world_size 
@@ -68,4 +68,4 @@ def ring_reduce(tensor: torch.Tensor):
         recv_idx=((recv_idx-1)+world_size)%world_size
        
     tensor /= world_size   
-   # print('Gathered, process {} has tensor {}'.format(rank, tensor))
+    # print('Gathered, process {} has tensor {}'.format(rank, tensor))

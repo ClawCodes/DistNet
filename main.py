@@ -16,6 +16,7 @@ print(PROJECT_ROOT)
 
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_EPOCHS = 16
+DEFAULT_BUCKET_SIZE = 5
 RUNS_DIR = PROJECT_ROOT / 'runs'
 DEFAULT_OUTPUT_DIR = RUNS_DIR / 'latest'
 
@@ -48,7 +49,7 @@ def main(args) -> None:
     dist.init_process_group(backend='gloo')
     rank = dist.get_rank()
 
-    net = DistLocalNet()
+    net = DistLocalNet(bucket_size=args.bucket_size)
     net.register_grad_hook(net.dist_hook)
 
     # broadcast parameters from rank 0 to other nodes
@@ -60,7 +61,7 @@ def main(args) -> None:
 
     output_dir = Path(args.output)
 
-    fname = f"node{dist.get_rank()}_batch_{args.batch_size}_epochs_{args.epoch}.json"
+    fname = f"node{dist.get_rank()}_batch_{args.batch_size}_epochs_{args.epoch}_buckets_{args.bucket_size}.json"
     outfile = output_dir / fname
     if output_dir != DEFAULT_OUTPUT_DIR:
         outfile = RUNS_DIR / output_dir / fname
@@ -77,6 +78,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("-b", "--batch-size", help="Batch size", type=int, default=DEFAULT_BATCH_SIZE)
     parser.add_argument("-e", "--epoch", help="Number of epochs to run", type=int, default=DEFAULT_EPOCHS)
+    parser.add_argument("-u", "--bucket-size", help="Max size of buckets in mb", type=int, default=DEFAULT_BUCKET_SIZE)
     parser.add_argument("-o", "--output", help="Output directory", type=str, default=str(DEFAULT_OUTPUT_DIR))
 
     args = parser.parse_args()
