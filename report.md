@@ -27,7 +27,7 @@
 ### Convergence Time
 
 #### Time to Reach Target Accuracy
-| World Size | 70% Acc (s) | 75% Acc (s) | 78% Acc (s) |
+| World Size | 70% Acc (s) | 74% Acc (s) | 78% Acc (s) |
 |------------|-------------|-------------|-------------|
 | 1          | 109.1       | 164.6       | 386.6       |
 | 2          | 92.4        | 185.5       | 308.4       |
@@ -35,7 +35,7 @@
 | 4          | 96.7        | 154.6       | 271.5       |
 
 #### Speedup vs WS1
-| World Size | 70% Speedup | 75% Speedup | 78% Speedup |
+| World Size | 70% Speedup | 74% Speedup | 78% Speedup |
 |------------|-------------|-------------|-------------|
 | 1          | 1.00×       | 1.00×       | 1.00×       |
 | 2          | 1.18×       | 0.89×       | 1.25×       |
