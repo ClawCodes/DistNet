@@ -43,6 +43,61 @@ def find_result_file(base_dir: str, world_size: int) -> Optional[str]:
     return None
 
 
+def find_all_node_files(base_dir: str, world_size: int) -> List[str]:
+    """Find all node result files for given world size."""
+    base_path = Path(base_dir)
+
+    patterns = [
+        f'speedup_ws{world_size}/node*.json',
+        f'*_ws{world_size}/node*.json',
+    ]
+
+    for pattern in patterns:
+        matches = list(base_path.glob(pattern))
+        if matches:
+            return [str(m) for m in sorted(matches)]
+
+    # Fallback: search subdirectories
+    for subdir in base_path.iterdir():
+        if not subdir.is_dir():
+            continue
+        node_files = list(subdir.glob('node*.json'))
+        if node_files:
+            try:
+                data = load_result(str(node_files[0]))
+                if data.get('world_size') == world_size:
+                    return [str(f) for f in sorted(node_files)]
+            except:
+                continue
+
+    return []
+
+
+def load_averaged_metrics(base_dir: str, world_size: int) -> Optional[Dict]:
+    """Load metrics from all nodes and return averaged accuracies."""
+    node_files = find_all_node_files(base_dir, world_size)
+
+    if not node_files:
+        return None
+
+    # Load first node to get structure
+    base_data = load_result(node_files[0])
+
+    # Collect accuracies from all nodes
+    all_accuracies = []
+    for filepath in node_files:
+        data = load_result(filepath)
+        all_accuracies.append(data['metrics']['accuracies'])
+
+    # Average accuracies across all nodes
+    avg_accuracies = np.mean(all_accuracies, axis=0).tolist()
+
+    # Update base_data with averaged accuracies
+    base_data['metrics']['accuracies'] = avg_accuracies
+
+    return base_data
+
+
 def analyze_speedup(results_dir: str, world_sizes: List[int]):
     """Analyze speedup and efficiency."""
     print("Analyzing speedup...")
@@ -70,19 +125,19 @@ def analyze_speedup(results_dir: str, world_sizes: List[int]):
 
 
 def analyze_convergence(results_dir: str, world_sizes: List[int], targets: List[float]):
-    """Analyze time to reach target accuracies."""
+    """Analyze time to reach target accuracies (using averaged accuracies across all nodes)."""
     print("\nAnalyzing convergence...")
 
     results = {t: [] for t in targets}
 
     for ws in world_sizes:
-        filepath = find_result_file(results_dir, ws)
-        if not filepath:
+        # Use averaged metrics from all nodes
+        data = load_averaged_metrics(results_dir, ws)
+        if not data:
             for t in targets:
                 results[t].append(None)
             continue
 
-        data = load_result(filepath)
         accuracies = data['metrics']['accuracies']
         epoch_times = data['metrics']['epoch_times']
 
@@ -178,20 +233,24 @@ def plot_training_curves(results_dir: str, world_sizes: List[int], output: str):
     blue_colors = ['#c6dbef', '#6baed6', '#2171b5', '#08519c']
 
     for i, ws in enumerate(world_sizes):
+        # Use node0 for losses (same across all nodes)
         filepath = find_result_file(results_dir, ws)
         if not filepath:
             continue
 
-        data = load_result(filepath)
-        epochs = range(1, len(data['metrics']['losses']) + 1)
+        data_node0 = load_result(filepath)
+        epochs = range(1, len(data_node0['metrics']['losses']) + 1)
 
         color = blue_colors[i] if i < len(blue_colors) else '#08519c'
 
-        ax1.plot(epochs, data['metrics']['losses'],
+        # Plot loss from node0 (losses are the same across nodes)
+        ax1.plot(epochs, data_node0['metrics']['losses'],
                 label=f'WS {ws}', linewidth=2, color=color)
 
-        if any(data['metrics']['accuracies']):
-            ax2.plot(epochs, [a * 100 for a in data['metrics']['accuracies']],
+        # Use averaged accuracies across all nodes
+        data_avg = load_averaged_metrics(results_dir, ws)
+        if data_avg and any(data_avg['metrics']['accuracies']):
+            ax2.plot(epochs, [a * 100 for a in data_avg['metrics']['accuracies']],
                     label=f'WS {ws}', linewidth=2, color=color)
 
     ax1.set_xlabel('Epoch')

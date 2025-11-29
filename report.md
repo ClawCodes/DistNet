@@ -2,9 +2,10 @@
 
 ## Experimental Setup
 
-- **Model**: 4-layer fully-connected network (3072 → 512 → 256 → 128 → 10)
-  - Parameters: 1.74M (~6.63MB)
-  - Activation: GELU with Dropout (0.2)
+- **Model**: Convolutional Neural Network (CNN)
+  - Architecture: Conv(32) → Conv(64) → Conv(128) → FC(256) → FC(10)
+  - Parameters: ~0.68M (~2.73MB)
+  - Activation: GELU with Dropout (0.2), BatchNorm between conv layers
 - **Dataset**: CIFAR-10 (50K training samples, 10K test samples)
 - **Training Configuration**: 15 epochs, batch size 128, Adam optimizer (lr=0.001)
 - **Distributed System**:
@@ -12,16 +13,34 @@
   - Data partitioning: DistributedSampler (interleaved assignment)
   - Gradient bucketing: 5MB buckets
 
-## Results: Fully-Connected Model
+## Results
 
 ### Performance Metrics
-#### Fully Connected Network
+#### CNN - Strong Scaling
 | World Size | Total Time (s) | Speedup | Efficiency | Comm Overhead | Final Accuracy |
 |------------|---------------|---------|------------|---------------|----------------|
-| 1          | 322.5         | 1.00×   | 100%       | 2.1%*         | 54.6%          |
-| 2          | 233.3         | 1.38×   | 69.2%      | 24.6%         | 53.5%          |
-| 3          | 166.0         | 1.94×   | 64.8%      | 30.4%         | 52.3%          |
-| 4          | 141.0         | 2.29×   | 57.2%      | 34.8%         | 51.7%          |
+| 1          | 829.75        | 1.00×   | 100.0%     | 0.30%         | 78.71%         |
+| 2          | 462.43        | 1.79×   | 89.7%      | 12.49%        | 78.50%         |
+| 3          | 339.00        | 2.45×   | 81.6%      | 21.19%        | 78.73%         |
+| 4          | 290.68        | 2.85×   | 71.4%      | 26.79%        | 78.52%         |
+
+### Convergence Time
+
+#### Time to Reach Target Accuracy
+| World Size | 70% Acc (s) | 75% Acc (s) | 78% Acc (s) |
+|------------|-------------|-------------|-------------|
+| 1          | 109.1       | 164.6       | 386.6       |
+| 2          | 92.4        | 185.5       | 308.4       |
+| 3          | 90.8        | 135.0       | 272.0       |
+| 4          | 96.7        | 154.6       | 271.5       |
+
+#### Speedup vs WS1
+| World Size | 70% Speedup | 75% Speedup | 78% Speedup |
+|------------|-------------|-------------|-------------|
+| 1          | 1.00×       | 1.00×       | 1.00×       |
+| 2          | 1.18×       | 0.89×       | 1.25×       |
+| 3          | 1.20×       | 1.22×       | 1.42×       |
+| 4          | 1.13×       | 1.06×       | 1.42×       |
 
 ### Key Observations
 
@@ -36,11 +55,19 @@
 - Model size (6.63MB) results in moderate communication-to-computation ratio
 
 **3. Convergence Behavior**
-- Accuracy decreases slightly with more nodes: 54.6% → 51.7% (2.9% drop)
-- Loss progression is slower for larger world sizes
-- Root cause: Larger effective batch size (WS1: 128, WS4: 512)
+- Loss progression is slower for larger world sizes in both scaling modes
+- **Strong Scaling**: WS4 has slower loss decrease due to gradient noise
+  - Each node processes only 32 samples (128 ÷ 4), leading to higher gradient variance
+  - Despite gradient averaging across nodes, individual gradients are lower quality
+  - Results in less stable parameter updates and reduced learning efficiency
+  - **Loss vs Accuracy paradox**: WS4 final loss (~0.48) >> WS1 final loss (~0.14), but accuracy is similar (78.5% vs 78.7%)
+    - Higher loss indicates lower prediction confidence (flatter probability distributions)
+    - Accuracy only measures if argmax is correct, not confidence level
+    - For probability-critical applications, WS1's lower loss is preferred
+- **Weak Scaling**: WS4 has slower loss decrease due to reduced update frequency
+  - Larger effective batch size (WS1: 128, WS4: 512)
   - Fewer parameter updates per epoch (WS1: 391, WS4: 98)
-  - Known characteristic of large-batch training
+  - Classic large-batch training characteristic: better gradient quality but 4× fewer updates
 
 **4. Time Breakdown (WS 4)**
 - Computation: 6.15s/epoch (65.2%)
