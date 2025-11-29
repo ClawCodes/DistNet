@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BATCH_SIZE=32
-EPOCHS=20
+BATCH_SIZE=128
+EPOCHS=15
 BUCKET_SIZE=5
 
 for nodes in 1 2 3 4; do
