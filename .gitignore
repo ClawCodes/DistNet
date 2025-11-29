@@ -210,4 +210,4 @@ __marimo__/
 .idea/
 
 # Local
-/tests/data/
+/tests/data/data/*.tar.gz
