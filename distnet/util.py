@@ -88,6 +88,25 @@ def load_mnist(batch_size: int = 32, batch_multiplier: int = 16, shuffle: bool =
 
     return train_loader, test_loader
 
+def load_cifar10(batch_size: int = 32, batch_multiplier: int = 16, shuffle: bool = True) -> Tuple[DataLoader, DataLoader]:
+    # CIFAR-10 standard normalization (per-channel mean and std from entire dataset)
+    # These values are commonly used for CIFAR-10
+    normalize_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
+                           std=[0.2470, 0.2435, 0.2616])
+    ])
+
+    # load normalized data
+    cifar_train = datasets.CIFAR10(root='./data', train=True, download=True, transform=normalize_transform)
+    cifar_test = datasets.CIFAR10(root='./data', train=False, download=True, transform=normalize_transform)
+
+    # wrap in data loaders
+    train_loader = torch.utils.data.DataLoader(cifar_train, batch_size=batch_size, shuffle=shuffle)
+    test_loader = torch.utils.data.DataLoader(cifar_test, batch_size=batch_multiplier * batch_size, shuffle=shuffle)
+
+    return train_loader, test_loader
+
 def train(model: nn.Module, train_loader: DataLoader, epochs: int = 16) -> nn.Module:
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -116,17 +135,29 @@ def train(model: nn.Module, train_loader: DataLoader, epochs: int = 16) -> nn.Mo
 
     return model
 
-def distributed_train(model: nn.Module, train_loader: DataLoader, batch_size: int, epochs: int , outfile: Path) -> nn.Module:
+def distributed_train(model: nn.Module, train_loader: DataLoader, test_loader: DataLoader, batch_size: int, epochs: int , outfile: Path) -> nn.Module:
+    world_size = dist.get_world_size()
+    rank = dist.get_rank()
+
     train_info = {
         "epochs": epochs,
         "batch_size": batch_size,
-        "loss": [],
+        "experiment": "speedup",
+        "world_size": world_size,
+        "rank": rank,
+        "metrics": {
+            "epoch_times": [],
+            "losses": [],
+            "accuracies": [],
+            "comm_times": [],
+            "compute_times": []
+        }
     }
 
     sampler = DistributedSampler(
         dataset=train_loader.dataset,
-        world_size=dist.get_world_size(),
-        rank=dist.get_rank(),
+        world_size=world_size,
+        rank=rank,
         shuffle=True,
         seed=42,
         drop_last=False,
@@ -142,9 +173,9 @@ def distributed_train(model: nn.Module, train_loader: DataLoader, batch_size: in
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
-    start = time.perf_counter()
     # train on data EPOCHS number of time
     for epoch in range(epochs):
+        epoch_start = time.perf_counter()   # Start timer for "each" epoch
         sampler.set_epoch(epoch)
         # initialize per epoch variables
         model.train()
@@ -159,26 +190,43 @@ def distributed_train(model: nn.Module, train_loader: DataLoader, batch_size: in
             model.reset_buckets()
             optimizer.step()
             epoch_loss += loss.item()
-        # output current loss
-        avg_loss = epoch_loss / len(train_loader)
-        train_info["loss"].append(avg_loss)
-        print(f"Epoch {epoch + 1}: loss={avg_loss:.4f}")
-        print('Process {} has fired grad hook {} times'.format(dist.get_rank(), model.hookFireCount))
-        print('Process {} has fired reduce {} times'.format(dist.get_rank(), model.reduceFireCount))
-        print('Process {} has {} buckets'.format(dist.get_rank(), len(model.buckets)))
-    # output training time
-    end = time.perf_counter()
-    time_elapsed = end - start
-    train_info["time_elapsed"] = time_elapsed
-    print(f"Training time: {time_elapsed:.2f} seconds")
 
+        avg_loss = epoch_loss / len(train_loader)
+        epoch_time = time.perf_counter() - epoch_start
+
+        # Get communication time from model
+        epoch_comm_time = model.get_comm_time()
+        epoch_compute_time = epoch_time - epoch_comm_time
+
+        train_info["metrics"]["losses"].append(avg_loss)
+        train_info["metrics"]["epoch_times"].append(epoch_time)
+        train_info["metrics"]["comm_times"].append(epoch_comm_time)
+        train_info["metrics"]["compute_times"].append(epoch_compute_time)
+
+        # Test after each epoch for convergence analysis
+        model.eval()
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for images, labels in test_loader:
+                output = model(images)
+                pred = output.argmax(dim=1)
+                correct += (pred == labels).sum().item()
+                total += labels.size(0)
+
+        accuracy = correct / total
+        train_info["metrics"]["accuracies"].append(accuracy)
+
+        print(f"Epoch {epoch + 1}: loss={avg_loss:.4f}, time={epoch_time:.2f}s, acc={accuracy*100:.2f}%")
+
+    # Write all the data to JSON at once when training finishes
     with open(outfile, "w") as f:
         json.dump(train_info, f, indent=4)
 
     return model
 
 def distributed_test(model: nn.Module, test_loader: DataLoader, outfile: Path) -> float:
-    print("Evaluating model performance...")
+    print("Final evaluation...")
     model.eval()
     correct = 0
     total = 0
@@ -190,16 +238,10 @@ def distributed_test(model: nn.Module, test_loader: DataLoader, outfile: Path) -
             total += labels.size(0)
 
     accuracy = correct / total
-    print(f"Test accuracy: {100 * correct / total:.2f}%")
+    print(f"Final test accuracy: {100 * accuracy:.2f}%")
 
-    with open(outfile, "r") as f_in:
-        data = json.load(f_in)
-
-    data["accuracy"] = accuracy
-
-    with open(outfile, "w") as f_out:
-        json.dump(data, f_out, indent=4)
-
+    # Note: accuracies already saved during training in metrics
+    # This is just final confirmation
     return accuracy
 
 def test(model: nn.Module, test_loader: DataLoader) -> float:

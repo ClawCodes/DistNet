@@ -1,8 +1,7 @@
 import torch
 
-from distnet.localnet import LocalNet
 from distnet.resnet import ResNetCIFAR
-from distnet.util import load_mnist, train, test, save, load_cifar100
+from distnet.util import train, test, save, load_cifar100
 
 BATCH_SIZE: int = 32
 EPOCHS: int = 16

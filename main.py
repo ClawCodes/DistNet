@@ -8,7 +8,8 @@ import torch
 import torch.distributed as dist
 
 from distnet.localnet import DistLocalNet
-from distnet.util import load_mnist, distributed_train, distributed_test, broadcast_model
+from distnet.localnet import DistCNN
+from distnet.util import load_cifar10, distributed_train, distributed_test, broadcast_model
 
 PROJECT_ROOT = Path(__file__).parent
 
@@ -17,6 +18,7 @@ print(PROJECT_ROOT)
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_EPOCHS = 16
 DEFAULT_BUCKET_SIZE = 5
+DEFAULT_MODEL = 'cnn'  # 'fc' or 'cnn'
 RUNS_DIR = PROJECT_ROOT / 'runs'
 DEFAULT_OUTPUT_DIR = RUNS_DIR / 'latest'
 
@@ -48,7 +50,14 @@ def reduce_func(param_name: str, grad: torch.Tensor) -> Optional[torch.Tensor]:
 def main(args) -> None:
     dist.init_process_group(backend='gloo')
 
-    net = DistLocalNet(bucket_size=args.bucket_size)
+    # Select model based on argument
+    if args.model == 'fc':
+        net = DistLocalNet(bucket_size=args.bucket_size)
+    elif args.model == 'cnn':
+        net = DistCNN(bucket_size=args.bucket_size)
+    else:
+        raise ValueError(f"Unknown model type: {args.model}. Use 'fc' or 'cnn'")
+
     net.register_grad_hook(net.dist_hook)
 
     # broadcast parameters from rank 0 to other nodes
@@ -56,7 +65,7 @@ def main(args) -> None:
     broadcast_model(net, src=0)
     dist.barrier()
 
-    train_loader, test_loader = load_mnist(args.batch_size)
+    train_loader, test_loader = load_cifar10(args.batch_size)
 
     output_dir = Path(args.output)
 
@@ -67,7 +76,9 @@ def main(args) -> None:
 
     os.makedirs(outfile.parent, exist_ok=True)
 
-    distributed_train(net, train_loader, args.batch_size, epochs=args.epoch, outfile=outfile)
+    # Pass test_loader to evaluate accuracy after each epoch 
+    # for convergence analysis
+    distributed_train(net, train_loader, test_loader, args.batch_size, epochs=args.epoch, outfile=outfile)
 
     distributed_test(net, test_loader, outfile)
    
@@ -79,6 +90,7 @@ if __name__ == '__main__':
     parser.add_argument("-e", "--epoch", help="Number of epochs to run", type=int, default=DEFAULT_EPOCHS)
     parser.add_argument("-u", "--bucket-size", help="Max size of buckets in mb", type=int, default=DEFAULT_BUCKET_SIZE)
     parser.add_argument("-o", "--output", help="Output directory", type=str, default=str(DEFAULT_OUTPUT_DIR))
+    parser.add_argument("-m", "--model", help="Model type: 'fc' or 'cnn'", type=str, default=DEFAULT_MODEL, choices=['fc', 'cnn'])
 
     args = parser.parse_args()
 
