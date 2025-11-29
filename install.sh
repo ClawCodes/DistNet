@@ -43,6 +43,7 @@ fi
 if ! command -v poetry >/dev/null 2>&1; then
     echo "Installing poetry..."
     pipx install poetry
+    pipx ensurepath
 else
     echo "poetry already installed."
 fi

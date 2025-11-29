@@ -3,6 +3,8 @@
 ## basic neural net for qmnist handwritten digit classification
 import torch
 from torch import nn
+from distnet.ring_allreduce import ring_reduce
+from distnet.bucket import Bucket
 
 from distnet.distnet import DistNet
 
@@ -36,7 +38,7 @@ class DistLocalNet(DistNet):
   After initialization call model.register_grad_hook(you_function) to register a per param gradient hook.
   """
 
-  def __init__(self):
+  def __init__(self, bucket_size=5): # bucket size is 5 mb by default. In practice our model is too small to fill more than one bucket
     super().__init__()
     self.model = nn.Sequential(
       nn.Flatten(),  # 28x28 to 784
@@ -45,6 +47,66 @@ class DistLocalNet(DistNet):
       nn.Linear(128, 64),
       nn.GELU(),
       nn.Linear(64, 10))
+
+    self.grad_params = [param for param in self.parameters() if param.requires_grad]
+
+    # Setup buckets
+    bucket_cap_mb = bucket_size
+    cap_bytes = bucket_cap_mb * 1024 * 1024
+    self.buckets = []
+    curr_bucket = []
+    curr_bytes = 0
+
+    for param in self.grad_params:
+        size = param.numel() * param.element_size()
+        if curr_bucket and (curr_bytes + size > cap_bytes):
+            # finalize current bucket
+            self.buckets.append(Bucket(list(curr_bucket)))
+            curr_bucket, curr_bytes = [], 0
+        curr_bucket.append(param)
+        curr_bytes += size
+
+    # add last bucket if any
+    if curr_bucket:
+        self.buckets.append(Bucket(list(curr_bucket)))
+
+    # Set for quickly looking up bucket for a parameter
+    self.param_id_to_bucket = {}
+    for b in self.buckets:
+        for p in b.params:
+            self.param_id_to_bucket[id(p)] = b
+
+    # Counters for debugging
+    self.hookFireCount = 0
+    self.reduceFireCount = 0
+
+    # Register hooks
+    #for param in self.grad_params:
+    #    param.register_hook(self.dist_hook(param))
+
+  # Ring all reduce hook will look something like this, this should probably be moved to main.py
+  def dist_hook(self, parameter, grad):
+    #def hook(grad):
+    self.hookFireCount+=1
+    #if self.hookFireCount < 10:  print('Firing hook: {}'.format(self.hookFireCount))
+    bucket = self.param_id_to_bucket.get(id(parameter))
+    if bucket is None:
+      # shouldn't happen if buckets constructed correctly
+      raise RuntimeError("Parameter not found in any bucket")
+    #Add gradient to the bucket
+    #if self.hookFireCount < 10: print('Bucket size: {}'.format(len(bucket.params)))
+    bucket.add_grad_tensor(parameter, grad)
+    if bucket.is_ready():
+      #if self.hookFireCount < 19: print('Firing reduce on hook fire: {}'.format(self.hookFireCount))
+      self.reduceFireCount+=1
+      ring_reduce(bucket.tensor)
+      bucket.scatter_to_params()
+      #return grad
+    return grad
+
+  def reset_buckets(self):
+    for b in self.buckets:
+      b.reset()
 
   def load(self, filepath: str):
     self.model.load_state_dict(torch.load(filepath))

@@ -1,0 +1,71 @@
+import os
+from torch import nn
+from torch import Tensor
+from torch import distributed as dist
+import torch
+
+def ring_reduce(tensor: torch.Tensor):
+    
+    world_size = dist.get_world_size() if dist.is_initialized() else 1
+    rank = dist.get_rank() if dist.is_initialized() else 0
+
+    #Split tensor into world_size chunks
+    chunks=list(torch.chunk(tensor,world_size))
+    tensor=torch.cat(chunks)
+    # print('Process {} has tensor {}'.format(rank, tensor))
+
+    send_idx=rank%world_size
+    recv_idx=((rank-1)+world_size)%world_size 
+
+    #Reduce-scatter
+    for i in range(world_size-1):
+        #Empty buffer for receiving tensors
+        recv_buff = torch.zeros_like(chunks[recv_idx])
+
+        #send to next neighbor
+        #print('Process {} started to send to {}'.format(rank, (rank+1)%world_size))
+        send = dist.isend(chunks[send_idx], (rank+1)%world_size)
+        #receive from prev neighbor
+        #print('Process {} started to receive from {}'.format(rank, (rank-1)%world_size))
+        recv = dist.irecv(recv_buff,((rank-1)+world_size)%world_size)
+
+        send.wait()
+        recv.wait()
+
+        #update local tensor with received value
+        chunks[recv_idx] += recv_buff[:]
+        tensor=torch.cat(chunks)
+
+        #decrement send/receive index + wrap around if needed
+        send_idx=((send_idx-1)+world_size)%world_size
+        recv_idx=((recv_idx-1)+world_size)%world_size
+        
+        
+    #print('Reduce-scatter done, process {} has tensor {}'.format(rank, tensor))
+    
+    #update indices, might not need
+    send_idx = (recv_idx+1)%world_size
+    recv_idx = ((send_idx - 1)+world_size)%world_size
+
+    #All Gather
+    for i in range(world_size-1):
+        #Empty buffer for receiving tensors
+        recv_buff = torch.zeros_like(chunks[recv_idx])
+
+        #send to next neighbor
+        send = dist.isend(chunks[send_idx], (rank+1)%world_size)
+        #receive from prev neighbor
+        recv = dist.irecv(recv_buff,((rank-1)+world_size)%world_size)
+
+        send.wait()
+        recv.wait()
+
+        #update local tensor with received value
+        chunks[recv_idx] = recv_buff[:]
+        tensor=torch.cat(chunks)
+        #decrement send/receive index + wrap around if needed
+        send_idx=((send_idx-1)+world_size)%world_size
+        recv_idx=((recv_idx-1)+world_size)%world_size
+       
+    tensor /= world_size   
+    # print('Gathered, process {} has tensor {}'.format(rank, tensor))

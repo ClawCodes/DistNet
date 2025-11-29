@@ -17,15 +17,16 @@ function to_domain(){
 NNODES="${1:-3}"             # default: 3 nodes
 BATCH_SIZE="${2:-32}"        # default: batch_size 32
 EPOCHS="${3:-16}"            # default: 16 epochs
-
+BUCKET_SIZE="${4:-5}"        # default: 5 mb
 # default output_dir = current datetime
 DEFAULT_OUT="$(date +"%Y%m%d_%H%M%S")"
-OUTPUT="${4:-$DEFAULT_OUT}"
+OUTPUT="${5:-$DEFAULT_OUT}"
 
 echo "Parameters:"
 echo "  nnodes      = $NNODES"
 echo "  batch_size  = $BATCH_SIZE"
 echo "  epochs      = $EPOCHS"
+echo "  bucket_size = $BUCKET_SIZE"
 echo "  output_dir  = $OUTPUT"
 echo ""
 
@@ -58,7 +59,7 @@ $RUNCMD \
     --node-rank=0 \
     --rdzv-backend=c10d \
     --rdzv-endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
-    "$PROJECT_DIR/main.py" -b "$BATCH_SIZE" -e "$EPOCHS" -o "$OUTPUT" &
+    "$PROJECT_DIR/main.py" -b "$BATCH_SIZE" -e "$EPOCHS" -u $BUCKET_SIZE -o "$OUTPUT" &
 
 # Launch processes for remaining nodes
 for (( rank=1; rank<NNODES; rank++ )); do
@@ -74,7 +75,7 @@ for (( rank=1; rank<NNODES; rank++ )); do
             --node-rank=$rank \
             --rdzv-backend=c10d \
             --rdzv-endpoint=${MASTER_ADDR}:${MASTER_PORT} \
-            main.py -b $BATCH_SIZE -e $EPOCHS -o $OUTPUT
+            main.py -b $BATCH_SIZE -e $EPOCHS -u $BUCKET_SIZE -o $OUTPUT
     '" &
 done
 

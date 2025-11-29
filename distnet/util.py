@@ -2,18 +2,29 @@ import json
 from pathlib import Path
 from typing import Tuple
 
-from torchvision import datasets, transforms
-import torch
-from torch import nn
 import time
+import random
+import numpy as np
+import torch
+from torchvision import datasets, transforms
+from torch import nn
 from torch import optim
 from torch.utils.data import DataLoader
-import numpy as np
-import random
+from torch.nn.utils import parameters_to_vector, vector_to_parameters
 import torch.distributed as dist
 
 from distnet import DistributedSampler
 
+
+def broadcast_model(model, src=0):
+    # broadcast parameters in single call
+    vec = parameters_to_vector(model.parameters())
+    dist.broadcast(vec, src=src)
+    vector_to_parameters(vec, model.parameters())
+
+    # broadcast any buffers individually
+    for buf in model.buffers():
+        dist.broadcast(buf.data, src=src)
 
 def set_seed(seed=42):
     """
@@ -131,34 +142,22 @@ def distributed_train(model: nn.Module, train_loader: DataLoader, test_loader: D
             output = model(images)
             loss = criterion(output, labels)
             loss.backward()
+            model.reset_buckets()
             optimizer.step()
             epoch_loss += loss.item()
 
         avg_loss = epoch_loss / len(train_loader)
-        epoch_time = time.perf_counter() - epoch_start
+        train_info["loss"].append(avg_loss)
+        print(f"Epoch {epoch + 1}: loss={avg_loss:.4f}")
+        print('Process {} has fired grad hook {} times'.format(dist.get_rank(), model.hookFireCount))
+        print('Process {} has fired reduce {} times'.format(dist.get_rank(), model.reduceFireCount))
+        print('Process {} has {} buckets'.format(dist.get_rank(), len(model.buckets)))
+    # output training time
+    end = time.perf_counter()
+    time_elapsed = end - start
+    train_info["time_elapsed"] = time_elapsed
+    print(f"Training time: {time_elapsed:.2f} seconds")
 
-        train_info["metrics"]["losses"].append(avg_loss)    # train_info["loss"].append(avg_loss)
-        train_info["metrics"]["epoch_times"].append(epoch_time)
-        train_info["metrics"]["comm_times"].append(0.0)
-        train_info["metrics"]["compute_times"].append(epoch_time)
-
-        # Test after each epoch for convergence analysis
-        model.eval()
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for images, labels in test_loader:
-                output = model(images)
-                pred = output.argmax(dim=1)
-                correct += (pred == labels).sum().item()
-                total += labels.size(0)
-
-        accuracy = correct / total
-        train_info["metrics"]["accuracies"].append(accuracy)
-
-        print(f"Epoch {epoch + 1}: loss={avg_loss:.4f}, time={epoch_time:.2f}s, acc={accuracy*100:.2f}%")
-
-    # Write all the data to JSON at once when training finishes
     with open(outfile, "w") as f:
         json.dump(train_info, f, indent=4)
 
