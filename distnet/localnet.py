@@ -88,6 +88,9 @@ class DistLocalNet(DistNet):
     self.hookFireCount = 0
     self.reduceFireCount = 0
 
+    # Communication time tracking
+    self.comm_time = 0.0
+
     # Register hooks
     #for param in self.grad_params:
     #    param.register_hook(self.dist_hook(param))
@@ -107,7 +110,8 @@ class DistLocalNet(DistNet):
     if bucket.is_ready():
       #if self.hookFireCount < 19: print('Firing reduce on hook fire: {}'.format(self.hookFireCount))
       self.reduceFireCount+=1
-      ring_reduce(bucket.tensor)
+      comm_time = ring_reduce(bucket.tensor)
+      self.comm_time += comm_time
       bucket.scatter_to_params()
       #return grad
     return grad
@@ -115,6 +119,12 @@ class DistLocalNet(DistNet):
   def reset_buckets(self):
     for b in self.buckets:
       b.reset()
+
+  def get_comm_time(self) -> float:
+    """Get accumulated communication time and reset counter."""
+    time = self.comm_time
+    self.comm_time = 0.0
+    return time
 
   def load(self, filepath: str):
     self.model.load_state_dict(torch.load(filepath))

@@ -168,10 +168,14 @@ def distributed_train(model: nn.Module, train_loader: DataLoader, test_loader: D
         avg_loss = epoch_loss / len(train_loader)
         epoch_time = time.perf_counter() - epoch_start
 
+        # Get communication time from model
+        epoch_comm_time = model.get_comm_time()
+        epoch_compute_time = epoch_time - epoch_comm_time
+
         train_info["metrics"]["losses"].append(avg_loss)
         train_info["metrics"]["epoch_times"].append(epoch_time)
-        train_info["metrics"]["comm_times"].append(0.0)
-        train_info["metrics"]["compute_times"].append(epoch_time)
+        train_info["metrics"]["comm_times"].append(epoch_comm_time)
+        train_info["metrics"]["compute_times"].append(epoch_compute_time)
 
         # Test after each epoch for convergence analysis
         model.eval()

@@ -1,10 +1,18 @@
 import os
+import time
 from torch import nn
 from torch import Tensor
 from torch import distributed as dist
 import torch
 
-def ring_reduce(tensor: torch.Tensor):
+def ring_reduce(tensor: torch.Tensor) -> float:
+    """
+    Perform ring all-reduce on the given tensor.
+
+    Returns:
+        float: Time spent on communication in seconds
+    """
+    comm_start = time.perf_counter()
     
     world_size = dist.get_world_size() if dist.is_initialized() else 1
     rank = dist.get_rank() if dist.is_initialized() else 0
@@ -67,5 +75,8 @@ def ring_reduce(tensor: torch.Tensor):
         send_idx=((send_idx-1)+world_size)%world_size
         recv_idx=((recv_idx-1)+world_size)%world_size
        
-    tensor /= world_size   
+    tensor /= world_size
     # print('Gathered, process {} has tensor {}'.format(rank, tensor))
+
+    comm_time = time.perf_counter() - comm_start
+    return comm_time
