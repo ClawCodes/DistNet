@@ -163,7 +163,6 @@ def distributed_train(model: nn.Module, train_loader: DataLoader, test_loader: D
         drop_last=False,
     )
 
-    # Use local batch size: divide global batch by world size for strong scaling
     local_batch_size = batch_size // world_size
     train_loader = DataLoader(
         train_loader.dataset,
