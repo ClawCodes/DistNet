@@ -15,23 +15,25 @@
 ## Experimental Setup
 
 ### Hardware & Software
-- **Model**: 3-layer fully-connected perceptron (784 → 128 → 64 → 10)
-  - Parameters: ~109K (~436KB)
-- **Dataset**: QMNIST handwritten digit classification
-  - Training: 60,000 samples
+- **Model**: 4-layer fully-connected perceptron (3072 → 512 → 256 → 128 → 10)
+  - Parameters: ~1.74M (~6.63MB)
+  - Input: Flattened 32×32×3 RGB images from CIFAR-10
+  - Activation: GELU with Dropout (0.2)
+- **Dataset**: CIFAR-10 image classification
+  - Training: 50,000 samples (10 classes)
   - Testing: 10,000 samples
-- **Baseline Performance**: 97% test accuracy (16 epochs, ~90 seconds on single node)
-- **Batch Size**: 32
+- **Baseline Performance**: ~54% test accuracy (15 epochs, batch size 128)
+- **Batch Size**: 128
 - **Optimizer**: Adam (lr=0.001)
 - **Loss Function**: CrossEntropyLoss
 
 ### Model Selection Rationale
-We deliberately chose a **small model** (~109K parameters) to:
-1. Investigate the break-even point where communication overhead negates distributed benefits
-2. Study minimum model size requirements for effective distributed training
-3. Provide practical guidance on when distributed training is worthwhile
+We chose a **medium-sized fully-connected model** (~1.74M parameters) to:
+1. Provide sufficient computation to make distributed training beneficial
+2. Quantify the communication-computation trade-off in a realistic setting
+3. Study how gradient bucketing and ring all-reduce perform with moderate model sizes
 
-**Expected challenge**: Communication overhead will be significant relative to computation, allowing us to quantify trade-offs.
+**Key characteristics**: The model is large enough to benefit from distributed training while still having measurable communication overhead (~35% at 4 nodes), allowing us to analyze the efficiency trade-offs.
 
 ### Distributed System Configuration
 - **Data Partitioning**: DistributedSampler (interleaved assignment)
@@ -45,34 +47,34 @@ We deliberately chose a **small model** (~109K parameters) to:
 **Goal**: Measure training time improvement and convergence speed as we increase the number of nodes.
 
 ### Setup
-- **Fixed**: Dataset size (60K samples), epochs (16), batch size (32)
+- **Fixed**: Dataset size (50K samples), epochs (15), batch size (128)
 - **Variable**: World size = {1, 2, 3, 4}
-- **Runs**: 3 runs per configuration (average results)
+- **Bucket Size**: 5MB for gradient bucketing
 
 ### Metrics to Collect
 - **Training time per epoch** (seconds)
 - **Total training time** (seconds)
-- **Time to reach target accuracy** (95%, 96%, 97%)
+- **Time to reach target accuracy** (40%, 45%, 50%)
 - **Final test accuracy** (%)
 - **Speedup**: S(n) = T(1) / T(n)
 - **Parallel Efficiency**: E(n) = S(n) / n
 - **Communication overhead**: % of time spent in all-reduce
 
 ### Expected Results
-Given our small model size (~436KB), we anticipate **significant communication overhead**:
-- **World Size 2**: Speedup ~1.3-1.5× (efficiency ~65-75%)
-- **World Size 3**: Speedup ~1.8-2.2× (efficiency ~60-70%)
-- **World Size 4**: Speedup ~2.2-2.6× (efficiency ~55-65%)
-- **QMNIST Caveat**: Task may saturate at ~97% accuracy
-  - More nodes should reach target accuracy faster, even if final accuracy plateaus
-  - Finding: For small models, distributed training accelerates convergence despite overhead
+Given our medium model size (~6.63MB), we anticipate **moderate communication overhead**:
+- **World Size 2**: Speedup ~1.4-1.5× (efficiency ~70-75%)
+- **World Size 3**: Speedup ~1.9-2.1× (efficiency ~65-70%)
+- **World Size 4**: Speedup ~2.2-2.4× (efficiency ~55-60%)
+- **CIFAR-10 Performance**: Target accuracy ~50-55% with this simple fully-connected architecture
+  - More nodes should reach target accuracy faster due to larger effective batch sizes
+  - Communication overhead (~30-35%) should be offset by computational gains
 
-**Note**: Sub-linear speedup is expected and valuable for characterizing the communication-computation trade-off.
+**Note**: Sub-linear speedup is expected due to communication overhead and larger effective batch sizes in distributed training.
 
 ### Analysis
 - Plot speedup curve (actual vs. ideal)
 - Plot parallel efficiency vs. world size
-- **Plot convergence time** for different accuracy targets (95%, 96%, 97%)
+- **Plot convergence time** for different accuracy targets (40%, 45%, 50%)
 - Plot training curves (loss vs. time, accuracy vs. time)
 - Calculate communication-to-computation ratio
 - Identify break-even point where adding nodes becomes counterproductive
@@ -84,9 +86,9 @@ Given our small model size (~436KB), we anticipate **significant communication o
 **Goal**: Quantify communication overhead in distributed training.
 
 ### Setup
-- **Fixed**: 16 epochs, batch size 32
+- **Fixed**: 15 epochs, batch size 128
 - **Variable**: World size = {1, 2, 3, 4}
-- **Instrumentation**: Add timers to measure communication in gradient hooks
+- **Instrumentation**: Timers in ring_allreduce to measure communication time
 
 ### Metrics to Collect (per batch)
 - **Total batch time** (seconds)
@@ -96,8 +98,8 @@ Given our small model size (~436KB), we anticipate **significant communication o
 
 ### Expected Results
 - Communication overhead increases with world size
-- For 4 nodes: expect communication ~30-40% of total time
-- Larger models would show lower percentage
+- For 4 nodes: expect communication ~30-35% of total time
+- Model size (6.63MB) provides reasonable computation-to-communication ratio
 
 ### Analysis
 - Pie chart: Computation vs. Communication time distribution
@@ -165,15 +167,15 @@ results/
 ### Minimum Viable Results
 - Demonstrate measurable speedup for 2-4 nodes (even if sub-linear)
 - Show faster convergence time with distributed training
-- Quantify communication overhead (characterize, not minimize)
-- Maintain comparable accuracy (±1% of baseline 97%)
-- Identify model size threshold for effective distributed training
+- Quantify communication overhead (characterize trade-offs)
+- Maintain comparable accuracy across different world sizes (±2% variation)
+- Document the relationship between model size, communication overhead, and efficiency
 
 ### Stretch Goals
 - Achieve >60% parallel efficiency with 4 nodes
-- Demonstrate communication overhead reduction via gradient accumulation
-- Validate findings with larger model experiment
-- Implement and compare model parallelism
+- Implement learning rate scaling to improve convergence consistency
+- Compare with PyTorch's DistributedDataParallel as reference
+- Analyze impact of different bucket sizes on communication efficiency
 
 ---
 
