@@ -266,7 +266,7 @@ def main():
     print(f"\nAnalyzing: {results_dir}\n")
 
     world_sizes = [1, 2, 3, 4]
-    targets = [0.40, 0.45, 0.5]
+    targets = [0.70, 0.74, 0.78]
 
     speedup, efficiency = analyze_speedup(results_dir, world_sizes)
     if speedup:

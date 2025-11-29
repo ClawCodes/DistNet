@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BATCH_SIZE=128
+BATCH_SIZE=512
 EPOCHS=15
 BUCKET_SIZE=5
 MODEL="${1:-cnn}"  # Default: cnn, can override with ./run_experiments.sh fc
