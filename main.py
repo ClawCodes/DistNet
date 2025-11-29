@@ -42,11 +42,6 @@ def get_num_workers() -> int:
 
     return int(output)
 
-# TODO: replace this with ring all reduce hook
-def reduce_func(param_name: str, grad: torch.Tensor) -> Optional[torch.Tensor]:
-    return grad
-
-
 def main(args) -> None:
     dist.init_process_group(backend='gloo')
 
