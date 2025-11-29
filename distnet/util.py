@@ -147,23 +147,36 @@ def distributed_train(model: nn.Module, train_loader: DataLoader, test_loader: D
             epoch_loss += loss.item()
 
         avg_loss = epoch_loss / len(train_loader)
-        train_info["loss"].append(avg_loss)
-        print(f"Epoch {epoch + 1}: loss={avg_loss:.4f}")
-        print('Process {} has fired grad hook {} times'.format(dist.get_rank(), model.hookFireCount))
-        print('Process {} has fired reduce {} times'.format(dist.get_rank(), model.reduceFireCount))
-        print('Process {} has {} buckets'.format(dist.get_rank(), len(model.buckets)))
-    # output training time
-    end = time.perf_counter()
-    time_elapsed = end - start
-    train_info["time_elapsed"] = time_elapsed
-    print(f"Training time: {time_elapsed:.2f} seconds")
+        epoch_time = time.perf_counter() - epoch_start
 
+        train_info["metrics"]["losses"].append(avg_loss)
+        train_info["metrics"]["epoch_times"].append(epoch_time)
+        train_info["metrics"]["comm_times"].append(0.0)
+        train_info["metrics"]["compute_times"].append(epoch_time)
+
+        # Test after each epoch for convergence analysis
+        model.eval()
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for images, labels in test_loader:
+                output = model(images)
+                pred = output.argmax(dim=1)
+                correct += (pred == labels).sum().item()
+                total += labels.size(0)
+
+        accuracy = correct / total
+        train_info["metrics"]["accuracies"].append(accuracy)
+
+        print(f"Epoch {epoch + 1}: loss={avg_loss:.4f}, time={epoch_time:.2f}s, acc={accuracy*100:.2f}%")
+
+    # Write all the data to JSON at once when training finishes
     with open(outfile, "w") as f:
         json.dump(train_info, f, indent=4)
 
     return model
 
-def distributed_test(model: nn.Module, test_loader: DataLoader) -> float:
+def distributed_test(model: nn.Module, test_loader: DataLoader, outfile: Path) -> float:
     print("Final evaluation...")
     model.eval()
     correct = 0
@@ -177,6 +190,9 @@ def distributed_test(model: nn.Module, test_loader: DataLoader) -> float:
 
     accuracy = correct / total
     print(f"Final test accuracy: {100 * accuracy:.2f}%")
+
+    # Note: accuracies already saved during training in metrics
+    # This is just final confirmation
     return accuracy
 
 def test(model: nn.Module, test_loader: DataLoader) -> float:
