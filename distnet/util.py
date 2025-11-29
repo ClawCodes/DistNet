@@ -62,6 +62,25 @@ def load_mnist(batch_size: int = 32, batch_multiplier: int = 16, shuffle: bool =
 
     return train_loader, test_loader
 
+def load_cifar10(batch_size: int = 32, batch_multiplier: int = 16, shuffle: bool = True) -> Tuple[DataLoader, DataLoader]:
+    # CIFAR-10 standard normalization (per-channel mean and std from entire dataset)
+    # These values are commonly used for CIFAR-10
+    normalize_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
+                           std=[0.2470, 0.2435, 0.2616])
+    ])
+
+    # load normalized data
+    cifar_train = datasets.CIFAR10(root='./data', train=True, download=True, transform=normalize_transform)
+    cifar_test = datasets.CIFAR10(root='./data', train=False, download=True, transform=normalize_transform)
+
+    # wrap in data loaders
+    train_loader = torch.utils.data.DataLoader(cifar_train, batch_size=batch_size, shuffle=shuffle)
+    test_loader = torch.utils.data.DataLoader(cifar_test, batch_size=batch_multiplier * batch_size, shuffle=shuffle)
+
+    return train_loader, test_loader
+
 def train(model: nn.Module, train_loader: DataLoader, epochs: int = 16) -> nn.Module:
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)

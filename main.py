@@ -8,7 +8,7 @@ import torch
 import torch.distributed as dist
 
 from distnet.localnet import DistLocalNet
-from distnet.util import load_mnist, distributed_train, distributed_test, broadcast_model
+from distnet.util import load_cifar10, distributed_train, distributed_test, broadcast_model
 
 PROJECT_ROOT = Path(__file__).parent
 
@@ -57,7 +57,7 @@ def main(args) -> None:
     broadcast_model(net, src=0)
     dist.barrier()
 
-    train_loader, test_loader = load_mnist(args.batch_size)
+    train_loader, test_loader = load_cifar10(args.batch_size)
 
     output_dir = Path(args.output)
 
