@@ -118,7 +118,7 @@ def plot_speedup(world_sizes: List[int], speedup: List[float],
     """Plot speedup and efficiency."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
-    ax1.plot(world_sizes, speedup, 'o-', linewidth=2, markersize=8, label='Actual')
+    ax1.plot(world_sizes, speedup, 'o-', linewidth=2, markersize=8, label='Actual', color='#1f77b4')
     ax1.plot(world_sizes, world_sizes, '--', linewidth=2, color='gray', label='Ideal')
     ax1.set_xlabel('World Size')
     ax1.set_ylabel('Speedup')
@@ -127,7 +127,7 @@ def plot_speedup(world_sizes: List[int], speedup: List[float],
     ax1.grid(alpha=0.3)
     ax1.set_xticks(world_sizes)
 
-    ax2.plot(world_sizes, efficiency, 'o-', linewidth=2, markersize=8, color='red')
+    ax2.plot(world_sizes, efficiency, 'o-', linewidth=2, markersize=8, color='#1f77b4')
     ax2.axhline(100, linestyle='--', color='gray', linewidth=2)
     ax2.set_xlabel('World Size')
     ax2.set_ylabel('Efficiency (%)')
@@ -149,10 +149,13 @@ def plot_convergence(world_sizes: List[int], results: Dict[float, List], output:
     x = np.arange(len(world_sizes))
     width = 0.25
 
+    # Blue gradient colors for different targets
+    blue_shades = ['#aec7e8', '#6baed6', '#2171b5']
+
     for i, target in enumerate(targets):
         times = [t if t else 0 for t in results[target]]
         ax.bar(x + width * (i - 1), times, width,
-               label=f'{target*100:.0f}% accuracy', alpha=0.8)
+               label=f'{target*100:.0f}% accuracy', alpha=0.9, color=blue_shades[i])
 
     ax.set_xlabel('World Size')
     ax.set_ylabel('Time to Reach Target (s)')
@@ -171,7 +174,10 @@ def plot_training_curves(results_dir: str, world_sizes: List[int], output: str):
     """Plot training curves."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
-    for ws in world_sizes:
+    # Blue gradient: light to dark (1 node = light, 4 nodes = dark)
+    blue_colors = ['#c6dbef', '#6baed6', '#2171b5', '#08519c']
+
+    for i, ws in enumerate(world_sizes):
         filepath = find_result_file(results_dir, ws)
         if not filepath:
             continue
@@ -179,12 +185,14 @@ def plot_training_curves(results_dir: str, world_sizes: List[int], output: str):
         data = load_result(filepath)
         epochs = range(1, len(data['metrics']['losses']) + 1)
 
+        color = blue_colors[i] if i < len(blue_colors) else '#08519c'
+
         ax1.plot(epochs, data['metrics']['losses'],
-                label=f'WS {ws}', linewidth=2)
+                label=f'WS {ws}', linewidth=2, color=color)
 
         if any(data['metrics']['accuracies']):
             ax2.plot(epochs, [a * 100 for a in data['metrics']['accuracies']],
-                    label=f'WS {ws}', linewidth=2)
+                    label=f'WS {ws}', linewidth=2, color=color)
 
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Loss')
@@ -221,9 +229,10 @@ def plot_comm_overhead(world_sizes: List[int], results_dir: str, output: str):
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
-    colors = ['green', 'orange', 'red', 'darkred']
-    ax1.bar(world_sizes, comm_pcts, color=colors[:len(world_sizes)],
-            alpha=0.7, edgecolor='black')
+    # Blue gradient: light to dark (1 node = light, 4 nodes = dark)
+    blue_colors = ['#c6dbef', '#6baed6', '#2171b5', '#08519c']
+    ax1.bar(world_sizes, comm_pcts, color=blue_colors[:len(world_sizes)],
+            alpha=0.9, edgecolor='black')
     ax1.set_xlabel('World Size')
     ax1.set_ylabel('Communication Overhead (%)')
     ax1.set_title('Communication Overhead', fontweight='bold')
@@ -233,7 +242,7 @@ def plot_comm_overhead(world_sizes: List[int], results_dir: str, output: str):
     compute = 100 - comm_pcts[-1]
     comm = comm_pcts[-1]
     ax2.pie([compute, comm], labels=['Computation', 'Communication'],
-           autopct='%1.1f%%', startangle=90, colors=['lightblue', 'coral'])
+           autopct='%1.1f%%', startangle=90, colors=['#c6dbef', '#fd8d3c'])
     ax2.set_title(f'Time Distribution (WS {world_sizes[-1]})', fontweight='bold')
 
     plt.tight_layout()
@@ -257,7 +266,7 @@ def main():
     print(f"\nAnalyzing: {results_dir}\n")
 
     world_sizes = [1, 2, 3, 4]
-    targets = [0.95, 0.96, 0.97]
+    targets = [0.40, 0.45, 0.5]
 
     speedup, efficiency = analyze_speedup(results_dir, world_sizes)
     if speedup:
