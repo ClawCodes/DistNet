@@ -45,7 +45,7 @@ class DistCNN(DistNet):
   """
 
   def __init__(self, bucket_size=5): # bucket size is 5 mb by default
-    super().__init__()
+    super().__init__(bucket_size)
     self.model = nn.Sequential(
       # Conv Block 1: 32x32x3 -> 16x16x32
       nn.Conv2d(3, 32, kernel_size=3, padding=1),
@@ -142,7 +142,7 @@ class DistLocalNet(DistNet):
   """
 
   def __init__(self, bucket_size=5): # bucket size is 5 mb by default
-    super().__init__()
+    super().__init__(bucket_size)
     self.model = nn.Sequential(
       nn.Flatten(),  # 32x32x3 to 3072
       nn.Linear(3072, 512),
