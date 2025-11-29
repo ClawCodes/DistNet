@@ -45,14 +45,14 @@
 ### Key Observations
 
 **1. Speedup and Efficiency**
-- Achieved 2.29× speedup on 4 nodes (57.2% efficiency)
+- Achieved 2.85× speedup on 4 nodes (71.4% efficiency)
 - Sub-linear scaling due to communication overhead
-- Efficiency decreases as world size increases: 100% → 69% → 65% → 57%
+- Efficiency decreases as world size increases: 100% → 89.7% → 81.6% → 71.4%
 
 **2. Communication Overhead**
-- Scales with world size: 2.1% → 24.6% → 30.4% → 34.8%
-- Communication time increases from ~0.45s/epoch (WS1) to ~3.2s/epoch (WS4)
-- Model size (6.63MB) results in moderate communication-to-computation ratio
+- Scales with world size: 0.30% → 14.15% → 21.53% → 27.98%
+- Communication time increases from ~0.17s/epoch (WS1) to ~5.50s/epoch (WS4)
+- Model size (~2.73MB) results in moderate communication-to-computation ratio
 
 **3. Convergence Behavior**
 - Loss progression is slower for larger world sizes in both scaling modes
@@ -70,16 +70,16 @@
   - Classic large-batch training characteristic: better gradient quality but 4× fewer updates
 
 **4. Time Breakdown (WS 4)**
-- Computation: 6.15s/epoch (65.2%)
-- Communication: 3.28s/epoch (34.8%)
-- Total: 9.43s/epoch
+- Computation: 14.14s/epoch (72.0%)
+- Communication: 5.50s/epoch (28.0%)
+- Total: 19.64s/epoch
 
 ### Technical Insights
 
 **Gradient Bucketing**
 - 5MB buckets effectively batch gradient tensors
 - Reduces number of all-reduce operations
-- ~2 buckets needed for 1.74M parameters
+- ~1 bucket needed for 0.68M parameters (~2.73MB model size)
 
 **Data Partitioning**
 - Interleaved assignment provides balanced workload
@@ -93,22 +93,22 @@
 
 ## Analysis
 
-### Trade-offs for Fully-Connected Model (1.74M params)
+### Trade-offs for CNN Model (0.68M params)
 
 **Benefits:**
-- Wall-clock time reduction: 2.29× faster with 4 nodes
-- Computation time remains stable: ~6.1s/epoch across all world sizes
-- System demonstrates effective parallelization
+- Wall-clock time reduction: 2.85× faster with 4 nodes
+- Computation time scales well: 55.15s → 14.14s per epoch (WS1 → WS4)
+- System demonstrates effective parallelization with good efficiency (71.4% at WS4)
 
 **Costs:**
-- Communication overhead: 34.8% of total time at WS 4
-- Efficiency degradation: 57% at WS 4 (vs. ideal 100%)
-- Convergence quality: 2.9% accuracy loss due to large batch effects
+- Communication overhead: 27.98% of total time at WS 4
+- Efficiency degradation: 71.4% at WS 4 (vs. ideal 100%)
+- Convergence behavior: Higher loss (~0.48 vs ~0.14) due to gradient noise, though final accuracy remains similar
 
 ### Model Size Considerations
 
-For the 1.74M parameter model:
-- Computation time (~6s) >> Communication time (~3s) at WS 4
-- System remains beneficial up to 4 nodes
-- Communication overhead becomes dominant beyond this scale
-- Larger models would show better efficiency due to higher computation-to-communication ratio
+For the 0.68M parameter CNN model (~2.73MB):
+- Computation time (14.14s) >> Communication time (5.50s) at WS 4
+- System remains highly beneficial up to 4 nodes
+- Communication overhead (28%) is manageable and doesn't dominate
+- Larger models would show even better efficiency due to higher computation-to-communication ratio
