@@ -47,7 +47,6 @@ def reduce_func(param_name: str, grad: torch.Tensor) -> Optional[torch.Tensor]:
 
 def main(args) -> None:
     dist.init_process_group(backend='gloo')
-    rank = dist.get_rank()
 
     net = DistLocalNet(bucket_size=args.bucket_size)
     net.register_grad_hook(net.dist_hook)

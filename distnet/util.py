@@ -42,6 +42,32 @@ def set_seed(seed=42):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
+def load_cifar100(batch_size: int = 128, num_workers: int = 2):
+
+    # Standard CIFAR-100 training augmentations
+    train_transform = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2673, 0.2564, 0.2762)),
+    ])
+
+    # Test/validation transform (no augmentation, deterministic)
+    test_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2673, 0.2564, 0.2762)),
+    ])
+
+    train_dataset = datasets.CIFAR100(root="./data", train=True, download=True, transform=train_transform)
+    test_dataset  = datasets.CIFAR100(root="./data", train=False, download=True, transform=test_transform)
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                             num_workers=num_workers, pin_memory=True)
+    test_loader  = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
+                             num_workers=num_workers, pin_memory=True)
+
+    return train_loader, test_loader
+
 
 def load_mnist(batch_size: int = 32, batch_multiplier: int = 16, shuffle: bool = True) -> Tuple[DataLoader, DataLoader]:
     raw = datasets.QMNIST(root='./data', what='train', download=True, transform=transforms.ToTensor())
