@@ -261,7 +261,7 @@ def plot_training_curves(results_dir: str, world_sizes: List[int], output: str):
 
     ax2.set_xlabel('Epoch')
     ax2.set_ylabel('Accuracy (%)')
-    ax2.set_title('Test Accuracy', fontweight='bold')
+    ax2.set_title('Training Accuracy', fontweight='bold')
     ax2.legend()
     ax2.grid(alpha=0.3)
 

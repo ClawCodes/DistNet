@@ -15,7 +15,7 @@ def load_result(filepath: str) -> Dict:
 
 
 def analyze_bucket_experiments(results_dir: str, bucket_sizes: List[int]):
-    """Analyze ResNet bucket size experiments."""
+    """Analyze bucket size experiments."""
 
     data = {
         'bucket_sizes': [],
@@ -24,16 +24,28 @@ def analyze_bucket_experiments(results_dir: str, bucket_sizes: List[int]):
     }
 
     for bucket_size in bucket_sizes:
-        bucket_dir = Path(results_dir) / f'resnet_bucket{bucket_size}_ws4'
+        # Try multiple naming patterns
+        patterns = [
+            f'resnet_bucket{bucket_size}_ws4',
+            f'exp_bucket{bucket_size}_ws4',
+            f'exp_bucket{bucket_size}mb_ws4',
+            f'bucket{bucket_size}_ws4',
+        ]
 
-        if not bucket_dir.exists():
-            print(f"Warning: {bucket_dir} not found, skipping bucket_size={bucket_size}")
+        bucket_dir = None
+        for pattern in patterns:
+            test_dir = Path(results_dir) / pattern
+            if test_dir.exists():
+                bucket_dir = test_dir
+                break
+
+        if bucket_dir is None:
+            # Try without warning for cleaner output
             continue
 
         # Load node0 result
         result_files = list(bucket_dir.glob('node0_*.json'))
         if not result_files:
-            print(f"Warning: No result file in {bucket_dir}")
             continue
 
         result = load_result(str(result_files[0]))
@@ -78,7 +90,8 @@ def plot_bucket_analysis(data: Dict, output: str):
     ax1.set_xticklabels([f'{bs}' for bs in bucket_sizes])
 
     # Set y-axis limits for left axis (communication time)
-    ax1.set_ylim([0, 100])  # 0 to max + 15% padding
+    # ax1.set_ylim([0, max(data['avg_comm_time']) * 1.15])  # 0 to max + 15% padding
+    ax1.set_ylim([40, 100])
 
     # Annotate communication time values on bars
     for bar, val in zip(bars, data['avg_comm_time']):
@@ -97,7 +110,8 @@ def plot_bucket_analysis(data: Dict, output: str):
     ax2.tick_params(axis='y', labelcolor=color2)
 
     # Set y-axis limits for right axis (percentage)
-    ax2.set_ylim([16, 21])  # 0 to max + 15% padding
+    # ax2.set_ylim([0, max(data['comm_overhead_pct']) * 1.15])  # 0 to max + 15% padding
+    ax2.set_ylim([16, 21])
 
     # Annotate overhead percentage values on line
     for x, y in zip(x_pos, data['comm_overhead_pct']):
@@ -123,7 +137,7 @@ def plot_bucket_analysis(data: Dict, output: str):
 
 def main():
     print("=" * 60)
-    print("ResNet Bucket Size Analysis")
+    print("Bucket Size Analysis")
     print("=" * 60)
     print()
 
@@ -133,7 +147,29 @@ def main():
         print(f"Error: '{results_dir}' not found")
         return
 
-    bucket_sizes = [3, 5, 10, 15]
+    # Auto-detect bucket sizes from directory names
+    base_path = Path(results_dir)
+    detected_sizes = set()
+
+    for item in base_path.iterdir():
+        if item.is_dir():
+            # Extract bucket size from directory name
+            name = item.name
+            if 'bucket' in name.lower():
+                # Try to extract number
+                import re
+                match = re.search(r'bucket(\d+)', name.lower())
+                if match:
+                    detected_sizes.add(int(match.group(1)))
+
+    if detected_sizes:
+        bucket_sizes = sorted(detected_sizes)
+        print(f"Auto-detected bucket sizes: {bucket_sizes}")
+    else:
+        bucket_sizes = [3, 5, 10, 15]
+        print(f"Using default bucket sizes: {bucket_sizes}")
+
+    print()
 
     data = analyze_bucket_experiments(results_dir, bucket_sizes)
 

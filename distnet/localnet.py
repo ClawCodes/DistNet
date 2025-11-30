@@ -21,10 +21,10 @@ class LocalNet(nn.Module):
         nn.Flatten(), # 32x32x3 to 3072
         nn.Linear(3072, 512),
         nn.GELU(),
-        nn.Dropout(0.2),
+        # nn.Dropout(0.2),
         nn.Linear(512, 256),
         nn.GELU(),
-        nn.Dropout(0.2),
+        # nn.Dropout(0.2),
         nn.Linear(256, 128),
         nn.GELU(),
         nn.Linear(128, 10))
@@ -70,7 +70,7 @@ class DistCNN(DistNet):
       nn.Flatten(),
       nn.Linear(2048, 256),
       nn.GELU(),
-      nn.Dropout(0.2),
+      # nn.Dropout(0.2),
       nn.Linear(256, 10))
 
     self.grad_params = [param for param in self.parameters() if param.requires_grad]
@@ -148,10 +148,10 @@ class DistLocalNet(DistNet):
       nn.Flatten(),  # 32x32x3 to 3072
       nn.Linear(3072, 512),
       nn.GELU(),
-      nn.Dropout(0.2),
+      # nn.Dropout(0.2),
       nn.Linear(512, 256),
       nn.GELU(),
-      nn.Dropout(0.2),
+      # nn.Dropout(0.2),
       nn.Linear(256, 128),
       nn.GELU(),
       nn.Linear(128, 10))
