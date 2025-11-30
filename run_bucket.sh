@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BATCH_SIZE=128
-EPOCHS=15
+EPOCHS=5
 MODEL="resnet"
 NODES=4  # ResNet experiments on 4 nodes
 
