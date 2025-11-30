@@ -50,7 +50,7 @@
 - Efficiency decreases as world size increases: 100% → 89.7% → 81.6% → 71.4%
 
 **2. Communication Overhead**
-- Scales with world size: 0.30% → 14.15% → 21.53% → 27.98%
+- Scales with world size: 0.30% → 12.49% → 21.19% → 26.79%
 - Communication time increases from ~0.17s/epoch (WS1) to ~5.50s/epoch (WS4)
 - Model size (~2.73MB) results in moderate communication-to-computation ratio
 
@@ -77,9 +77,12 @@
 ### Technical Insights
 
 **Gradient Bucketing**
-- 5MB buckets effectively batch gradient tensors
-- Reduces number of all-reduce operations
-- ~1 bucket needed for 0.68M parameters (~2.73MB model size)
+- Bucket size optimization on WS4 (comm time per epoch):
+  - 1-2MB: 6.9s (+26% penalty, multiple all-reduce latency)
+  - **3MB: 5.5s (optimal, single all-reduce)**
+  - 5-10MB: 5.6-5.7s (+2-4% overhead, memory allocation cost?)
+- System is latency-bound: 1MB vs 2MB shows minimal difference
+- Optimal bucket ≈ model size × 1.1 for minimal overhead
 
 **Data Partitioning**
 - Interleaved assignment provides balanced workload

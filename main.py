@@ -7,8 +7,7 @@ from pathlib import Path
 import torch
 import torch.distributed as dist
 
-from distnet.localnet import DistLocalNet
-from distnet.localnet import DistCNN
+from distnet.localnet import DistLocalNet, DistCNN, DistResNet
 from distnet.util import load_cifar10, distributed_train, distributed_test, broadcast_model
 
 PROJECT_ROOT = Path(__file__).parent
@@ -50,8 +49,10 @@ def main(args) -> None:
         net = DistLocalNet(bucket_size=args.bucket_size)
     elif args.model == 'cnn':
         net = DistCNN(bucket_size=args.bucket_size)
+    elif args.model == 'resnet':
+        net = DistResNet(bucket_size=args.bucket_size)
     else:
-        raise ValueError(f"Unknown model type: {args.model}. Use 'fc' or 'cnn'")
+        raise ValueError(f"Unknown model type: {args.model}. Use 'fc', 'cnn', or 'resnet'")
 
     net.register_grad_hook(net.dist_hook)
 
@@ -85,7 +86,7 @@ if __name__ == '__main__':
     parser.add_argument("-e", "--epoch", help="Number of epochs to run", type=int, default=DEFAULT_EPOCHS)
     parser.add_argument("-u", "--bucket-size", help="Max size of buckets in mb", type=int, default=DEFAULT_BUCKET_SIZE)
     parser.add_argument("-o", "--output", help="Output directory", type=str, default=str(DEFAULT_OUTPUT_DIR))
-    parser.add_argument("-m", "--model", help="Model type: 'fc' or 'cnn'", type=str, default=DEFAULT_MODEL, choices=['fc', 'cnn'])
+    parser.add_argument("-m", "--model", help="Model type: 'fc', 'cnn', or 'resnet'", type=str, default=DEFAULT_MODEL, choices=['fc', 'cnn', 'resnet'])
 
     args = parser.parse_args()
 
