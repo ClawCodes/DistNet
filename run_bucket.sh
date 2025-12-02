@@ -4,7 +4,7 @@ set -euo pipefail
 BATCH_SIZE=128
 EPOCHS=5
 MODEL="resnet"
-NODES=4  # ResNet experiments on 4 nodes
+NODES=4  # ResNet experiments on
 
 echo "====================================="
 echo "ResNet Bucket Size Experiments"

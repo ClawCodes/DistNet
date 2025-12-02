@@ -8,9 +8,9 @@ cluster_size() {
         sort | uniq | wc -l
 }
 
-function to_domain(){
-  alias="$1"
-  echo "${alias}.cl.utah-cs6450-pg0.utah.cloudlab.us"
+function to_address(){
+  local alias="$1"
+  getent hosts "$alias" | awk '{print $1}'
 }
 
 # Script params
@@ -22,6 +22,8 @@ BUCKET_SIZE="${4:-5}"        # default: 5 mb
 DEFAULT_OUT="$(date +"%Y%m%d_%H%M%S")"
 OUTPUT="${5:-$DEFAULT_OUT}"
 MODEL="${6:-cnn}"            # default: cnn ('fc' or 'cnn')
+LAYERS="${7:-0}"
+WIDTH="${8:-0}"
 
 echo "Parameters:"
 echo "  nnodes      = $NNODES"
@@ -30,6 +32,8 @@ echo "  epochs      = $EPOCHS"
 echo "  bucket_size = $BUCKET_SIZE"
 echo "  output_dir  = $OUTPUT"
 echo "  model       = $MODEL"
+echo "  layers      = $LAYERS"
+echo "  width       = $WIDTH"
 echo ""
 
 # Validate cluster size
@@ -42,7 +46,7 @@ if (( NNODES > AVAILABLE )); then
 fi
 
 
-MASTER_ADDR=$(to_domain "node0")
+MASTER_ADDR=$(to_address "node0")
 MASTER_PORT=29500
 PROJECT_DIR=$(pwd)
 
@@ -59,13 +63,14 @@ $RUNCMD \
     --nproc-per-node=1 \
     --nnodes="$NNODES" \
     --node-rank=0 \
-    --rdzv-backend=c10d \
-    --rdzv-endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
-    "$PROJECT_DIR/main.py" -b "$BATCH_SIZE" -e "$EPOCHS" -u $BUCKET_SIZE -o "$OUTPUT" -m "$MODEL" &
+    --master-addr="$MASTER_ADDR" \
+    --master-port="$MASTER_PORT" \
+    "$PROJECT_DIR/main.py" -b "$BATCH_SIZE" -e "$EPOCHS" -u $BUCKET_SIZE -o "$OUTPUT" -m "$MODEL" -l "$LAYERS" -w "$WIDTH"&
+
 
 # Launch processes for remaining nodes
 for (( rank=1; rank<NNODES; rank++ )); do
-    node=$(to_domain "node${rank}")
+    node=$(to_address "node${rank}")
     echo ">>> Launching Rank ${rank} on ${node}"
 
     # Note: use interactive login to source bashrc
@@ -75,9 +80,9 @@ for (( rank=1; rank<NNODES; rank++ )); do
             --nproc-per-node=1 \
             --nnodes=$NNODES \
             --node-rank=$rank \
-            --rdzv-backend=c10d \
-            --rdzv-endpoint=${MASTER_ADDR}:${MASTER_PORT} \
-            main.py -b $BATCH_SIZE -e $EPOCHS -u $BUCKET_SIZE -o $OUTPUT -m $MODEL
+            --master-addr="$MASTER_ADDR" \
+            --master-port="$MASTER_PORT" \
+            main.py -b $BATCH_SIZE -e $EPOCHS -u $BUCKET_SIZE -o $OUTPUT -m $MODEL -l "$LAYERS" -w "$WIDTH"
     '" &
 done
 

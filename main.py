@@ -7,7 +7,7 @@ from pathlib import Path
 import torch
 import torch.distributed as dist
 
-from distnet.localnet import DistLocalNet, DistCNN, DistResNet
+from distnet.localnet import DistLocalNet, DistCNN, DistResNet, ScalableNet
 from distnet.util import load_cifar10, distributed_train, distributed_test, broadcast_model
 
 PROJECT_ROOT = Path(__file__).parent
@@ -41,6 +41,7 @@ def get_num_workers() -> int:
 
     return int(output)
 
+
 def main(args) -> None:
     dist.init_process_group(backend='gloo')
 
@@ -51,8 +52,10 @@ def main(args) -> None:
         net = DistCNN(bucket_size=args.bucket_size)
     elif args.model == 'resnet':
         net = DistResNet(bucket_size=args.bucket_size)
+    elif args.model == 'scalable':
+        net = ScalableNet(bucket_size=args.bucket_size, hidden_dim=args.width, layers=args.layers)
     else:
-        raise ValueError(f"Unknown model type: {args.model}. Use 'fc', 'cnn', or 'resnet'")
+        raise ValueError(f"Unknown model type: {args.model}. Use 'fc', 'cnn', 'resnet', or 'scalable'")
 
     net.register_grad_hook(net.dist_hook)
 
@@ -65,7 +68,7 @@ def main(args) -> None:
 
     output_dir = Path(args.output)
 
-    fname = f"node{dist.get_rank()}_batch_{args.batch_size}_epochs_{args.epoch}_buckets_{args.bucket_size}.json"
+    fname = f"node{dist.get_rank()}_batch_{args.batch_size}_epochs_{args.epoch}_buckets_{args.bucket_size}_layers_{args.layers}_width{args.width}.json"
     outfile = output_dir / fname
     if output_dir != DEFAULT_OUTPUT_DIR:
         outfile = RUNS_DIR / output_dir / fname
@@ -77,8 +80,9 @@ def main(args) -> None:
     distributed_train(net, train_loader, test_loader, args.batch_size, epochs=args.epoch, outfile=outfile)
 
     distributed_test(net, test_loader, outfile)
-   
+
     dist.destroy_process_group()
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -86,7 +90,10 @@ if __name__ == '__main__':
     parser.add_argument("-e", "--epoch", help="Number of epochs to run", type=int, default=DEFAULT_EPOCHS)
     parser.add_argument("-u", "--bucket-size", help="Max size of buckets in mb", type=int, default=DEFAULT_BUCKET_SIZE)
     parser.add_argument("-o", "--output", help="Output directory", type=str, default=str(DEFAULT_OUTPUT_DIR))
-    parser.add_argument("-m", "--model", help="Model type: 'fc', 'cnn', or 'resnet'", type=str, default=DEFAULT_MODEL, choices=['fc', 'cnn', 'resnet'])
+    parser.add_argument("-m", "--model", help="Model type: 'fc', 'cnn', or 'resnet'", type=str, default=DEFAULT_MODEL,
+                        choices=['fc', 'cnn', 'resnet', 'scalable'])
+    parser.add_argument("-w", "--width", help="layer width", type=int, default=0)
+    parser.add_argument("-l", "--layers", help="number of layers", type=int, default=0)
 
     args = parser.parse_args()
 

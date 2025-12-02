@@ -306,3 +306,26 @@ class DistResNet(DistNet):
 
   def forward(self, x):
     return self.model(x)
+
+
+class ScalableNet(DistNet):
+  def __init__(self, bucket_size, hidden_dim=512, layers=8, num_classes=10):
+    super().__init__(bucket_size)
+    self.flatten = nn.Flatten()
+    in_dim = 32 * 32 * 3 # using CIFAR
+
+    modules = []
+    current_dim = in_dim
+
+    for i in range(layers):
+      modules.append(nn.Linear(current_dim, hidden_dim))
+      modules.append(nn.ReLU())
+      current_dim = hidden_dim
+
+    modules.append(nn.Linear(hidden_dim, num_classes))
+    self.model = nn.Sequential(*modules)
+    self.init_comms() # Must be called after self.model is initialized
+
+  def forward(self, x):
+    x = self.flatten(x)
+    return self.model(x)

@@ -26,6 +26,7 @@ def broadcast_model(model, src=0):
     for buf in model.buffers():
         dist.broadcast(buf.data, src=src)
 
+
 def set_seed(seed=42):
     """
     Function to call before training if you want deterministic results.
@@ -42,8 +43,8 @@ def set_seed(seed=42):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-def load_cifar100(batch_size: int = 128, num_workers: int = 2):
 
+def load_cifar100(batch_size: int = 128, num_workers: int = 2):
     # Standard CIFAR-100 training augmentations
     train_transform = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
@@ -59,11 +60,11 @@ def load_cifar100(batch_size: int = 128, num_workers: int = 2):
     ])
 
     train_dataset = datasets.CIFAR100(root="./data", train=True, download=True, transform=train_transform)
-    test_dataset  = datasets.CIFAR100(root="./data", train=False, download=True, transform=test_transform)
+    test_dataset = datasets.CIFAR100(root="./data", train=False, download=True, transform=test_transform)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
-                             num_workers=num_workers, pin_memory=True)
-    test_loader  = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
+                              num_workers=num_workers, pin_memory=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
                              num_workers=num_workers, pin_memory=True)
 
     return train_loader, test_loader
@@ -88,13 +89,15 @@ def load_mnist(batch_size: int = 32, batch_multiplier: int = 16, shuffle: bool =
 
     return train_loader, test_loader
 
-def load_cifar10(batch_size: int = 32, batch_multiplier: int = 16, shuffle: bool = True) -> Tuple[DataLoader, DataLoader]:
+
+def load_cifar10(batch_size: int = 32, batch_multiplier: int = 16, shuffle: bool = True) -> Tuple[
+    DataLoader, DataLoader]:
     # CIFAR-10 standard normalization (per-channel mean and std from entire dataset)
     # These values are commonly used for CIFAR-10
     normalize_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
-                           std=[0.2470, 0.2435, 0.2616])
+                             std=[0.2470, 0.2435, 0.2616])
     ])
 
     # load normalized data
@@ -106,6 +109,7 @@ def load_cifar10(batch_size: int = 32, batch_multiplier: int = 16, shuffle: bool
     test_loader = torch.utils.data.DataLoader(cifar_test, batch_size=batch_multiplier * batch_size, shuffle=shuffle)
 
     return train_loader, test_loader
+
 
 def train(model: nn.Module, train_loader: DataLoader, epochs: int = 16) -> nn.Module:
     criterion = nn.CrossEntropyLoss()
@@ -135,7 +139,9 @@ def train(model: nn.Module, train_loader: DataLoader, epochs: int = 16) -> nn.Mo
 
     return model
 
-def distributed_train(model: nn.Module, train_loader: DataLoader, test_loader: DataLoader, batch_size: int, epochs: int , outfile: Path) -> nn.Module:
+
+def distributed_train(model: nn.Module, train_loader: DataLoader, test_loader: DataLoader, batch_size: int, epochs: int,
+                      outfile: Path) -> nn.Module:
     world_size = dist.get_world_size()
     rank = dist.get_rank()
 
@@ -176,7 +182,7 @@ def distributed_train(model: nn.Module, train_loader: DataLoader, test_loader: D
 
     # train on data EPOCHS number of time
     for epoch in range(epochs):
-        epoch_start = time.perf_counter()   # Start timer for "each" epoch
+        epoch_start = time.perf_counter()  # Start timer for "each" epoch
         sampler.set_epoch(epoch)
         # initialize per epoch variables
         model.train()
@@ -218,13 +224,14 @@ def distributed_train(model: nn.Module, train_loader: DataLoader, test_loader: D
         accuracy = correct / total
         train_info["metrics"]["accuracies"].append(accuracy)
 
-        print(f"Epoch {epoch + 1}: loss={avg_loss:.4f}, time={epoch_time:.2f}s, acc={accuracy*100:.2f}%")
+        print(f"Epoch {epoch + 1}: loss={avg_loss:.4f}, time={epoch_time:.2f}s, acc={accuracy * 100:.2f}%")
 
     # Write all the data to JSON at once when training finishes
     with open(outfile, "w") as f:
         json.dump(train_info, f, indent=4)
 
     return model
+
 
 def distributed_test(model: nn.Module, test_loader: DataLoader, outfile: Path) -> float:
     print("Final evaluation...")
@@ -245,6 +252,7 @@ def distributed_test(model: nn.Module, test_loader: DataLoader, outfile: Path) -
     # This is just final confirmation
     return accuracy
 
+
 def test(model: nn.Module, test_loader: DataLoader) -> float:
     print("Evaluating model performance...")
     model.eval()
@@ -261,6 +269,7 @@ def test(model: nn.Module, test_loader: DataLoader) -> float:
     print(f"Test accuracy: {100 * correct / total:.2f}%")
 
     return accuracy
+
 
 def save(model: nn.Module, name: str):
     torch.save(model.state_dict(), f"./models/{name}.pth")

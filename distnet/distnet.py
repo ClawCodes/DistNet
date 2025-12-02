@@ -7,10 +7,12 @@ from distnet.ring_allreduce import ring_reduce
 class DistNet(nn.Module):
     def __init__(self, bucket_size: int):
         super().__init__()
-        self.grad_params = [param for param in self.parameters() if param.requires_grad]
+        self.bucket_size = bucket_size
 
+    def init_comms(self):
+        self.grad_params = [param for param in self.parameters() if param.requires_grad]
         # Setup buckets
-        bucket_cap_mb = bucket_size
+        bucket_cap_mb = self.bucket_size
         cap_bytes = bucket_cap_mb * 1024 * 1024
         self.buckets = []
         curr_bucket = []
@@ -36,26 +38,37 @@ class DistNet(nn.Module):
                 self.param_id_to_bucket[id(p)] = b
 
         # Counters for debugging
-        # self.hookFireCount = 0
-        # self.reduceFireCount = 0
+        self.hookFireCount = 0
+        self.reduceFireCount = 0
+
+        # Communication time tracking
+        self.comm_time = 0.0
 
     def dist_hook(self, parameter, grad):
-        # self.hookFireCount += 1
-
+        self.hookFireCount += 1
         bucket = self.param_id_to_bucket.get(id(parameter))
         if bucket is None:
-            # shouldn't happen if buckets constructed correctly
             raise RuntimeError("Parameter not found in any bucket")
-        # Add gradient to the bucket
         bucket.add_grad_tensor(parameter, grad)
         if bucket.is_ready():
-            ring_reduce(bucket.tensor)
+            self.reduceFireCount += 1
+            comm_time = ring_reduce(bucket.tensor)
+            self.comm_time += comm_time
             bucket.scatter_to_params()
         return grad
 
     def reset_buckets(self):
         for b in self.buckets:
             b.reset()
+
+    def get_comm_time(self) -> float:
+        """Get accumulated communication time and reset counter."""
+        time_ = self.comm_time
+        self.comm_time = 0.0
+        return time_
+
+    def forward(self, x):
+        return self.model(x)
 
     def register_grad_hook(self, hook_func: Callable[[str, Tensor], Union[Tensor, None]]):
         for param in self.grad_params:
